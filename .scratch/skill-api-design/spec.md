@@ -1,8 +1,9 @@
 # Skill interface and standards compliance
 
 Design status: approved by the user on 2026-09-11.
-Implementation status: not started for the remaining approved changes.
-The user explicitly requested no further implementation on 2026-09-11.
+Implementation status: in progress on `implement/skill-api-design`.
+Implementation resumed at the user's request through `implement-spec`; this
+supersedes the earlier pause on 2026-09-11.
 
 ## Agreed decisions
 
