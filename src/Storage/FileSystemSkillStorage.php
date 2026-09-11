@@ -38,6 +38,15 @@ class FileSystemSkillStorage implements SkillStorageInterface
         return array_keys($this->skillDirectories);
     }
 
+    public function location(string $skill): ?string
+    {
+        if (!array_key_exists($skill, $this->skillDirectories)) {
+            throw new ToolException("Skill \"{$skill}\" is not available.");
+        }
+
+        return $this->skillDirectories[$skill];
+    }
+
     public function read(string $skill, string $path): string
     {
         if (!array_key_exists($skill, $this->skillDirectories)) {
