@@ -55,6 +55,23 @@ class MultipleSkillStoragesTest extends TestCase
         return $document;
     }
 
+    public function test_numeric_directory_identifiers_remain_strings_across_storages(): void
+    {
+        $projectDocument = $this->skill('project', '123', "'123'", 'Project');
+        $this->skill('user', '123', "'123'", 'User');
+        $project = new FileSystemSkillStorage($this->root.'/project');
+        $user = new FileSystemSkillStorage($this->root.'/user');
+        $this->assertSame(['123'], $project->skills());
+        foreach ([new SkillToolkit($project), new SkillToolkit($project, $user)] as $toolkit) {
+            $this->assertStringContainsString('Project', $toolkit->guidelines() ?? '');
+            [$activation, $resource] = $toolkit->tools();
+            $activation->setInputs(['name' => '123'])->execute();
+            $this->assertSame('Skill location: '.$this->root."/project/123\n\n".$projectDocument, $activation->getResult());
+            $resource->setInputs(['name' => '123', 'path' => 'guide.md'])->execute();
+            $this->assertSame("project guide for '123'", $resource->getResult());
+        }
+    }
+
     public function test_precedence_keeps_documents_locations_and_resources_together(): void
     {
         $projectDocument = $this->skill('project', 'folder', 'shared', 'Project');
