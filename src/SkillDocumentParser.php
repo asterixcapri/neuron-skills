@@ -23,10 +23,7 @@ final class SkillDocumentParser
         }
 
         try {
-            $metadata = Yaml::parse(
-                $parts['frontmatter'],
-                Yaml::PARSE_OBJECT_FOR_MAP | Yaml::PARSE_EXCEPTION_ON_INVALID_TYPE,
-            );
+            $metadata = $this->parseYaml($parts['frontmatter']);
         } catch (ParseException $exception) {
             return ['document' => null, 'warnings' => ['Unparseable YAML: '.$exception->getMessage()]];
         }
@@ -97,5 +94,14 @@ final class SkillDocumentParser
         }
 
         return ['frontmatter' => $matches[1]."\n", 'body' => $matches[2]];
+    }
+
+    /** @throws ParseException */
+    private function parseYaml(string $yaml): mixed
+    {
+        return Yaml::parse(
+            $yaml,
+            Yaml::PARSE_OBJECT_FOR_MAP | Yaml::PARSE_EXCEPTION_ON_INVALID_TYPE,
+        );
     }
 }
