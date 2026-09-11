@@ -33,8 +33,8 @@ class SkillRepositoryTest extends TestCase
             ['name' => 'analysis', 'description' => 'Analyse evidence'],
             ['name' => 'writing', 'description' => 'Write clearly: for humans'],
         ], $repository->catalog());
-        $this->assertSame($storage->files['writing']['SKILL.md'], $repository->readInstructions('writing'));
-        $this->assertSame($storage->files['analysis']['SKILL.md'], $repository->readInstructions('analysis'));
+        $this->assertSame($storage->files['writing']['SKILL.md'], $repository->readDocument('writing'));
+        $this->assertSame($storage->files['analysis']['SKILL.md'], $repository->readDocument('analysis'));
     }
 
     /** @dataProvider invalidSkills */
@@ -72,7 +72,7 @@ class SkillRepositoryTest extends TestCase
             ],
         ]));
         $this->assertSame([['name' => 'shared', 'description' => 'First']], $repository->catalog());
-        $this->assertSame("---\nname: shared\ndescription: First\n---\nFirst body", $repository->readInstructions('shared'));
+        $this->assertSame("---\nname: shared\ndescription: First\n---\nFirst body", $repository->readDocument('shared'));
         $this->assertSame('First guide', $repository->readResource('shared', 'guide.md'));
         $diagnostics = $repository->diagnostics();
         $this->assertSame('a-invalid', $diagnostics[0]['skill']);
@@ -96,11 +96,11 @@ class SkillRepositoryTest extends TestCase
         $this->assertSame([
             ['name' => 'writing', 'description' => 'Original description'],
         ], $repository->catalog());
-        $this->assertSame($storage->files['writing']['SKILL.md'], $repository->readInstructions('writing'));
+        $this->assertSame($storage->files['writing']['SKILL.md'], $repository->readDocument('writing'));
         $this->assertSame('Changed guide.', $repository->readResource('writing', 'guide.md'));
         $this->expectException(ToolException::class);
         $this->expectExceptionMessage('Skill "added" is not available.');
-        $repository->readInstructions('added');
+        $repository->readDocument('added');
     }
 
     public function test_rejects_an_empty_resource_path_before_calling_storage(): void
@@ -131,7 +131,7 @@ class SkillRepositoryTest extends TestCase
         $this->expectExceptionMessage('Read failed.');
 
         if ($instructions) {
-            $repository->readInstructions('writing');
+            $repository->readDocument('writing');
         } else {
             $repository->readResource('writing', $path);
         }
@@ -157,7 +157,7 @@ class SkillRepositoryTest extends TestCase
         $this->expectException(ToolException::class);
         $this->expectExceptionMessage('Skill "writing" has invalid frontmatter.');
 
-        $repository->readInstructions('writing');
+        $repository->readDocument('writing');
     }
 
     public function test_rejects_resources_from_an_unknown_skill(): void
