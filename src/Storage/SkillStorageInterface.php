@@ -9,8 +9,8 @@ use NeuronAI\Exceptions\ToolException;
 interface SkillStorageInterface
 {
     /** @return string[] */
-    public function packages(): array;
+    public function skills(): array;
 
     /** @throws ToolException */
-    public function read(string $package, string $path): string;
+    public function read(string $skill, string $path): string;
 }

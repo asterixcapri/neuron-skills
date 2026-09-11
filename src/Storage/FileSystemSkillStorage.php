@@ -26,49 +26,49 @@ use const SORT_STRING;
 class FileSystemSkillStorage implements SkillStorageInterface
 {
     /** @var array<string, string> */
-    protected array $packageDirectories = [];
+    protected array $skillDirectories = [];
 
     public function __construct(protected string $skillsRoot)
     {
-        $this->discoverPackages();
+        $this->discoverSkills();
     }
 
-    public function packages(): array
+    public function skills(): array
     {
-        return array_keys($this->packageDirectories);
+        return array_keys($this->skillDirectories);
     }
 
-    public function read(string $package, string $path): string
+    public function read(string $skill, string $path): string
     {
-        if (!array_key_exists($package, $this->packageDirectories)) {
-            throw new ToolException("Skill \"{$package}\" is not available.");
+        if (!array_key_exists($skill, $this->skillDirectories)) {
+            throw new ToolException("Skill \"{$skill}\" is not available.");
         }
         if (!$this->validPath($path)) {
             throw new ToolException("Resource path \"{$path}\" is invalid.");
         }
 
-        $packageDirectory = $this->packageDirectories[$package];
-        $file = realpath($packageDirectory.'/'.$path);
+        $skillDirectory = $this->skillDirectories[$skill];
+        $file = realpath($skillDirectory.'/'.$path);
         if ($file === false) {
-            throw new ToolException("Resource \"{$path}\" was not found in skill \"{$package}\".");
+            throw new ToolException("Resource \"{$path}\" was not found in skill \"{$skill}\".");
         }
-        if ($file !== $packageDirectory && !$this->isWithin($file, $packageDirectory)) {
-            throw new ToolException("Resource \"{$path}\" escapes skill \"{$package}\".");
+        if ($file !== $skillDirectory && !$this->isWithin($file, $skillDirectory)) {
+            throw new ToolException("Resource \"{$path}\" escapes skill \"{$skill}\".");
         }
         if (!is_file($file)) {
-            throw new ToolException("Resource \"{$path}\" in skill \"{$package}\" is not a file.");
+            throw new ToolException("Resource \"{$path}\" in skill \"{$skill}\" is not a file.");
         }
         if (!is_readable($file)) {
-            throw new ToolException("Resource \"{$path}\" in skill \"{$package}\" could not be read.");
+            throw new ToolException("Resource \"{$path}\" in skill \"{$skill}\" could not be read.");
         }
 
         $contents = file_get_contents($file);
         if ($contents === false) {
-            throw new ToolException("Resource \"{$path}\" in skill \"{$package}\" could not be read.");
+            throw new ToolException("Resource \"{$path}\" in skill \"{$skill}\" could not be read.");
         }
         if (str_contains($contents, "\0") || preg_match('//u', $contents) !== 1) {
             throw new ToolException(
-                "Resource \"{$path}\" in skill \"{$package}\" contains unsupported binary content.",
+                "Resource \"{$path}\" in skill \"{$skill}\" contains unsupported binary content.",
             );
         }
 
@@ -80,7 +80,7 @@ class FileSystemSkillStorage implements SkillStorageInterface
         return $path !== '' && !str_contains($path, "\0");
     }
 
-    protected function discoverPackages(): void
+    protected function discoverSkills(): void
     {
         if (!is_dir($this->skillsRoot)) {
             return;
@@ -93,16 +93,16 @@ class FileSystemSkillStorage implements SkillStorageInterface
 
             $directory = realpath($entry->getPathname());
             if ($directory !== false) {
-                $this->packageDirectories[$entry->getFilename()] = $directory;
+                $this->skillDirectories[$entry->getFilename()] = $directory;
             }
         }
 
-        $packages = array_keys($this->packageDirectories);
-        sort($packages, SORT_STRING);
-        $directories = $this->packageDirectories;
-        $this->packageDirectories = [];
-        foreach ($packages as $package) {
-            $this->packageDirectories[$package] = $directories[$package];
+        $skills = array_keys($this->skillDirectories);
+        sort($skills, SORT_STRING);
+        $directories = $this->skillDirectories;
+        $this->skillDirectories = [];
+        foreach ($skills as $skill) {
+            $this->skillDirectories[$skill] = $directories[$skill];
         }
     }
 

@@ -112,7 +112,8 @@ For the format supported by this library:
 
 - Match `name` to the skill's folder name. Use lowercase letters, digits and
   single separating hyphens, up to 64 characters.
-- Write `name` and `description` as unquoted, unindented, single-line values.
+- Use YAML strings for `name` and `description`: quoted values, comments and
+  multiline blocks are supported. Names support Unicode letters and numbers.
 - Give the skill a description of 1–1024 characters that explains when to use it.
 - Place the Markdown instructions after the closing `---`.
 
@@ -121,8 +122,20 @@ toolkit to make them available.
 
 ## Error Handling
 
-Skills with missing or invalid metadata are omitted from the catalog. If no
-valid skills are available, the toolkit adds no tools or guidelines.
+Skills with unusable YAML or missing, empty or non-string names/descriptions are
+omitted. Usable skills with nonconforming metadata remain loadable with warnings,
+including names that differ from their directories. Within a storage, the first
+usable candidate in alphabetical identifier order wins duplicate declared names.
+If no usable skills are available, the toolkit adds no tools or guidelines.
+
+Inspect `$toolkit->diagnostics()` for an array of `skill` and `message` entries.
+Diagnostics are not printed or sent to the model automatically. Optional fields
+(`license`, `compatibility`, `metadata`, `allowed-tools`) and extensions are
+preserved without granting permissions. See the [validation policy](docs/validation.md)
+for field checks, YAML behavior and the distinction between warnings and exclusion.
+
+Custom adapters implement `SkillStorageInterface::skills(): array` to enumerate
+storage identifiers and `read(string $skill, string $path): string` to read files.
 
 Expected read failures, such as an unknown skill or a missing file, are returned
 as readable messages so the agent can respond to them. Unexpected failures

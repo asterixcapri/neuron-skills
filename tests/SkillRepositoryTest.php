@@ -20,7 +20,7 @@ class SkillRepositoryTest extends TestCase
     {
         $storage = new InMemorySkillStorage([
             'writing' => [
-                'SKILL.md' => "---\nname: writing\ndescription: Write clearly: for humans\nlicense: MIT\n---\n\nWrite directly.\n",
+                'SKILL.md' => "---\nname: writing\ndescription: \"Write clearly: for humans\"\nlicense: MIT\n---\n\nWrite directly.\n",
             ],
             'analysis' => [
                 'SKILL.md' => "---\r\nname: analysis\r\ndescription: Analyse evidence\r\n---\r\nAnalyse carefully.\r\n",
@@ -36,11 +36,12 @@ class SkillRepositoryTest extends TestCase
     }
 
     /** @dataProvider invalidSkills */
-    public function test_silently_omits_invalid_skills(string $package, string $contents): void
+    public function test_excludes_unusable_skills_with_diagnostics(string $skill, string $contents): void
     {
-        $repository = new SkillRepository(new InMemorySkillStorage([$package => ['SKILL.md' => $contents]]));
+        $repository = new SkillRepository(new InMemorySkillStorage([$skill => ['SKILL.md' => $contents]]));
 
         $this->assertSame([], $repository->catalog());
+        $this->assertNotEmpty($repository->diagnostics());
     }
 
     /** @return array<string, array{string, string}> */
@@ -55,14 +56,26 @@ class SkillRepositoryTest extends TestCase
             'empty description' => ['empty-description', "---\nname: empty-description\ndescription: \n---\nBody"],
             'indented name' => ['indented-name', "---\n name: indented-name\ndescription: Indented\n---\nBody"],
             'indented description' => ['indented-description', "---\nname: indented-description\n description: Indented\n---\nBody"],
-            'uppercase name' => ['Bad-name', "---\nname: Bad-name\ndescription: Invalid\n---\nBody"],
-            'leading hyphen' => ['-bad', "---\nname: -bad\ndescription: Invalid\n---\nBody"],
-            'trailing hyphen' => ['bad-', "---\nname: bad-\ndescription: Invalid\n---\nBody"],
-            'consecutive hyphens' => ['bad--name', "---\nname: bad--name\ndescription: Invalid\n---\nBody"],
-            'overlong name' => [str_repeat('a', 65), "---\nname: ".str_repeat('a', 65)."\ndescription: Invalid\n---\nBody"],
-            'overlong description' => ['long-description', "---\nname: long-description\ndescription: ".str_repeat('a', 1025)."\n---\nBody"],
-            'package mismatch' => ['expected-name', "---\nname: another-name\ndescription: Mismatch\n---\nBody"],
         ];
+    }
+
+    public function test_first_usable_alphabetical_candidate_owns_the_declared_name_and_reads(): void
+    {
+        $repository = new SkillRepository(new InMemorySkillStorage([
+            'z-last' => ['SKILL.md' => "---\nname: shared\ndescription: Last\n---\nLast body"],
+            'a-invalid' => ['SKILL.md' => "---\nname: shared\ndescription: []\n---\nInvalid"],
+            'b-first' => [
+                'SKILL.md' => "---\nname: shared\ndescription: First\n---\nFirst body",
+                'guide.md' => 'First guide',
+            ],
+        ]));
+        $this->assertSame([['name' => 'shared', 'description' => 'First']], $repository->catalog());
+        $this->assertSame('First body', $repository->readInstructions('shared'));
+        $this->assertSame('First guide', $repository->readResource('shared', 'guide.md'));
+        $diagnostics = $repository->diagnostics();
+        $this->assertSame('a-invalid', $diagnostics[0]['skill']);
+        $this->assertSame('z-last', $diagnostics[3]['skill']);
+        $this->assertStringContainsString('shadowed', $diagnostics[3]['message']);
     }
 
     public function test_catalog_is_snapshotted_while_instruction_and_resource_reads_are_lazy(): void
@@ -168,12 +181,12 @@ class SkillRepositoryTest extends TestCase
     public function test_unexpected_storage_failures_remain_exceptions(): void
     {
         $storage = new class () implements SkillStorageInterface {
-            public function packages(): array
+            public function skills(): array
             {
                 return ['broken'];
             }
 
-            public function read(string $package, string $path): string
+            public function read(string $skill, string $path): string
             {
                 throw new LogicException('Storage failed unexpectedly.');
             }
@@ -196,23 +209,23 @@ class InMemorySkillStorage implements SkillStorageInterface
     /** @var array<string, array<string, string>> */
     public array $failures = [];
 
-    public function packages(): array
+    public function skills(): array
     {
         return array_keys($this->files);
     }
 
-    public function read(string $package, string $path): string
+    public function read(string $skill, string $path): string
     {
-        if (isset($this->failures[$package][$path])) {
-            throw new ToolException($this->failures[$package][$path]);
+        if (isset($this->failures[$skill][$path])) {
+            throw new ToolException($this->failures[$skill][$path]);
         }
-        if (!array_key_exists($package, $this->files)) {
-            throw new ToolException("Skill \"{$package}\" is not available.");
+        if (!array_key_exists($skill, $this->files)) {
+            throw new ToolException("Skill \"{$skill}\" is not available.");
         }
-        if (!array_key_exists($path, $this->files[$package])) {
-            throw new ToolException("Resource \"{$path}\" was not found in skill \"{$package}\".");
+        if (!array_key_exists($path, $this->files[$skill])) {
+            throw new ToolException("Resource \"{$path}\" was not found in skill \"{$skill}\".");
         }
 
-        return $this->files[$package][$path];
+        return $this->files[$skill][$path];
     }
 }

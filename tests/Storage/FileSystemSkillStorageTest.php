@@ -51,13 +51,13 @@ class FileSystemSkillStorageTest extends TestCase
         mkdir($this->skillsRoot.'/analysis', 0o777, true);
         mkdir($this->skillsRoot.'/nested/ignored', 0o777, true);
 
-        $this->assertSame(['analysis', 'nested', 'writing'], (new FileSystemSkillStorage($this->skillsRoot))->packages());
+        $this->assertSame(['analysis', 'nested', 'writing'], (new FileSystemSkillStorage($this->skillsRoot))->skills());
     }
 
-    public function test_empty_and_nonexistent_roots_have_no_packages(): void
+    public function test_empty_and_nonexistent_roots_have_no_skills(): void
     {
-        $this->assertSame([], (new FileSystemSkillStorage($this->skillsRoot))->packages());
-        $this->assertSame([], (new FileSystemSkillStorage($this->skillsRoot.'/missing'))->packages());
+        $this->assertSame([], (new FileSystemSkillStorage($this->skillsRoot))->skills());
+        $this->assertSame([], (new FileSystemSkillStorage($this->skillsRoot.'/missing'))->skills());
     }
 
     public function test_package_names_are_snapshotted_while_files_are_read_lazily_and_in_full(): void
@@ -70,7 +70,7 @@ class FileSystemSkillStorageTest extends TestCase
         $contents = str_repeat('Complete UTF-8 text: café. ', 10000);
         file_put_contents($path, $contents);
 
-        $this->assertSame(['writing'], $storage->packages());
+        $this->assertSame(['writing'], $storage->skills());
         $this->assertSame($contents, $storage->read('writing', 'guide.md'));
     }
 
@@ -81,7 +81,7 @@ class FileSystemSkillStorageTest extends TestCase
         symlink($this->outsideRoot.'/shared-skill', $this->skillsRoot.'/shared-skill');
         $storage = new FileSystemSkillStorage($this->skillsRoot);
 
-        $this->assertSame(['shared-skill'], $storage->packages());
+        $this->assertSame(['shared-skill'], $storage->skills());
         $this->assertSame('Shared guide.', $storage->read('shared-skill', 'guide.md'));
     }
 
