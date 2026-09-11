@@ -6,7 +6,7 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Skills\SkillToolkit;
+use NeuronAI\Skills\Tools\Toolkits\Skills\SkillToolkit;
 use NeuronAI\Skills\Storage\FileSystemSkillStorage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\Tool;
