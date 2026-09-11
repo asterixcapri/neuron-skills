@@ -2,12 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Skills;
+namespace NeuronAI\Skills\Tools\Toolkits\Skills;
 
 use NeuronAI\Skills\Internal\SkillRepository;
 use NeuronAI\Skills\Storage\SkillStorageInterface;
-use NeuronAI\Skills\Tool\SkillResourceTool;
-use NeuronAI\Skills\Tool\SkillTool;
 use NeuronAI\Tools\Toolkits\AbstractToolkit;
 
 use function array_map;

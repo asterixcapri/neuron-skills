@@ -51,7 +51,7 @@ application's root, register that folder on your configured Neuron AI agent:
 
 ```php
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Skills\SkillToolkit;
+use NeuronAI\Skills\Tools\Toolkits\Skills\SkillToolkit;
 use NeuronAI\Skills\Storage\FileSystemSkillStorage;
 
 $storage = new FileSystemSkillStorage(__DIR__.'/.agents/skills');
