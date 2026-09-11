@@ -542,10 +542,21 @@ class SkillToolkitTest extends TestCase
         $this->assertStringNotContainsString('SkillToolkit', $provider->getRecorded()[0]->systemPrompt ?? '');
     }
 
+    public function test_activation_retains_explicit_yaml_key_syntax(): void
+    {
+        $document = "---\n? name\n: writing\n? description\n: Works\nmetadata: {? author: Alice}\n---\nBody\n";
+        file_put_contents($this->skillsRoot.'/writing/SKILL.md', $document);
+        $toolkit = new SkillToolkit(new FileSystemSkillStorage($this->skillsRoot));
+        $this->assertSame([], $toolkit->diagnostics());
+        $activation = $toolkit->tools()[0];
+        $activation->setInputs(['name' => 'writing'])->execute();
+        $this->assertSame('Skill location: '.realpath($this->skillsRoot.'/writing')."\n\n".$document, $activation->getResult());
+    }
+
     /** @dataProvider locationFailures */
     public function test_activation_location_failures_follow_the_tool_error_policy(bool $expected): void
     {
-        $storage = new class ($expected) extends FileSystemSkillStorage {
+        $storage = new class ($expected) implements SkillStorageInterface {
             public function __construct(private bool $expected)
             {
             }

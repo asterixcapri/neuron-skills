@@ -35,7 +35,7 @@ class FileSystemSkillStorage implements SkillStorageInterface
 
     public function skills(): array
     {
-        return array_keys($this->skillDirectories);
+        return array_map(strval(...), array_keys($this->skillDirectories));
     }
 
     public function location(string $skill): ?string

@@ -49,11 +49,7 @@ class SkillRepository
     /** @throws ToolException */
     public function readInstructions(string $name): string
     {
-        if (!array_key_exists($name, $this->availableSkills)) {
-            throw new ToolException(sprintf('Skill "%s" is not available.', $name));
-        }
-
-        $source = $this->availableSkills[$name];
+        $source = $this->source($name);
         $contents = $source['storage']->read($source['identifier'], self::MANIFEST);
 
         $document = (new SkillDocumentParser())->parse($contents, $source['identifier'])['document'];
@@ -67,26 +63,29 @@ class SkillRepository
     /** @throws ToolException */
     public function location(string $name): ?string
     {
-        if (!array_key_exists($name, $this->availableSkills)) {
-            throw new ToolException(sprintf('Skill "%s" is not available.', $name));
-        }
-
-        $source = $this->availableSkills[$name];
+        $source = $this->source($name);
         return $source['storage']->location($source['identifier']);
     }
 
     /** @throws ToolException */
     public function readResource(string $name, string $path): string
     {
-        if (!array_key_exists($name, $this->availableSkills)) {
-            throw new ToolException(sprintf('Skill "%s" is not available.', $name));
-        }
+        $source = $this->source($name);
         if ($path === '') {
             throw new ToolException('Resource path "" is invalid.');
         }
 
-        $source = $this->availableSkills[$name];
         return $source['storage']->read($source['identifier'], $path);
+    }
+
+    /** @return array{storage: SkillStorageInterface, identifier: string, ordinal: int} */
+    private function source(string $name): array
+    {
+        if (!array_key_exists($name, $this->availableSkills)) {
+            throw new ToolException(sprintf('Skill "%s" is not available.', $name));
+        }
+
+        return $this->availableSkills[$name];
     }
 
     protected function buildCatalog(SkillStorageInterface $storage, int $ordinal): void
