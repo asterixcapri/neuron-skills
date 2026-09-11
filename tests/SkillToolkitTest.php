@@ -543,9 +543,9 @@ class SkillToolkitTest extends TestCase
         $this->assertStringNotContainsString('SkillToolkit', $provider->getRecorded()[0]->systemPrompt ?? '');
     }
 
-    public function test_activation_retains_explicit_yaml_key_syntax(): void
+    public function test_activation_retains_original_yaml_syntax(): void
     {
-        $document = "---\n? name\n: writing\n? description\n: Works\nmetadata: {? author: Alice}\n---\nBody\n";
+        $document = "---\nname: writing\ndescription: &summary Works # comment\nmetadata: {summary: *summary}\n---\nBody\n";
         file_put_contents($this->skillsRoot.'/writing/SKILL.md', $document);
         $toolkit = new SkillToolkit(new FileSystemSkillStorage($this->skillsRoot));
         $this->assertSame([], $toolkit->diagnostics());

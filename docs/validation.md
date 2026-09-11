@@ -61,17 +61,12 @@ quoted multiline strings, escapes, comments, literal and folded blocks, plain
 continuations, flow mappings, explicit `!!str`, aliases and empty maps. Retaining
 the final frontmatter newline is necessary for literal block chomping semantics.
 
-[YAML explicit scalar mapping keys](https://yaml.org/spec/1.2.2/#822-block-mappings)
-are accepted in block and flow mappings, including nested metadata. Symfony 6.4
-rejects block explicit entries and can misinterpret flow explicit entries. The
-internal parser represents explicit key/value nodes as paired internal entries
-before delegating syntax and scalar interpretation to Symfony, then rebuilds the
-mappings and checks duplicate keys. Keeping the key nodes in the same document
-preserves anchors and aliases across keys and values. Block normalization uses
-the parser's error location; flow normalization tracks collection boundaries,
-quotes, comments and scalar contents. Tests include quoted, tagged, multiline,
-block scalar and aliased keys, and verify that scalar contents and the original
-activated document remain intact.
+YAML syntax support is exactly that of Symfony YAML 6.4 with the configured
+safe parsing flags. The library does not rewrite syntax or add compatibility
+handling. In particular, explicit mapping keys (`? key` / `: value`, or flow
+variants) are not supported reliably by Symfony; use ordinary `key: value`
+mappings. Syntax rejected by Symfony excludes the document with a diagnostic.
+Full YAML-language conformance is not claimed.
 
 Document streams and directives are outside a single delimited frontmatter
 mapping. Compact block sequences cannot represent the required string fields or

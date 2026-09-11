@@ -34,95 +34,9 @@ class SkillDocumentParserTest extends TestCase
         ];
     }
 
-    /** @dataProvider explicitScalarKeys */
-    public function test_supports_explicit_scalar_mapping_keys(string $yaml): void
-    {
-        $result = (new SkillDocumentParser())->parse("---\n".$yaml."\n---\nBody", 'writing');
-        $this->assertSame([], $result['warnings']);
-        $this->assertSame('writing', $result['document']['name'] ?? null);
-        $this->assertSame('Works', $result['document']['description'] ?? null);
-    }
-
-    /** @return array<string, array{string}> */
-    public static function explicitScalarKeys(): array
-    {
-        return [
-            'flow quoted no space' => ['{? "name":"writing", ? "description":"Works"}'],
-            'flow' => ['{? name: writing, ? description: Works}'],
-            'anchored flow' => ["name: writing\ndescription: Works\nmetadata: &meta {? author: Alice}\nx-copy: *meta"],
-            'nested flow' => ["name: writing\ndescription: Works\nmetadata: {? author: Alice, ? version: '1.0'}"],
-            'multiline flow' => ["{\n  ? name: writing,\n  ? description: Works,\n  ? metadata: { ? author: Alice }\n}"],
-            'plain' => ["? name\n: writing\n? description\n: Works"],
-            'quoted and comments' => ["? 'name' # key\n# separation\n: writing\n? \"description\"\n: Works"],
-            'tagged' => ["? !!str name\n: writing\ndescription: Works"],
-            'multiline quoted' => ["? \"na\\\n  me\"\n: writing\ndescription: Works"],
-            'block scalar key' => ["? |-\n  name\n: writing\ndescription: Works"],
-            'indented key' => ["?\n  name\n: writing\ndescription: Works"],
-            'nested metadata' => ["name: writing\ndescription: Works\nmetadata:\n  ? 'author'\n  : Alice\n  ? version\n  : '1.0'"],
-        ];
-    }
-
-    public function test_explicit_keys_preserve_scalar_contents_and_nested_values(): void
-    {
-        $result = (new SkillDocumentParser())->parse(<<<'SKILL'
-            ---
-            name: writing
-            description: |+
-              ? leave this
-              : unchanged
-
-            ? metadata
-            :
-              ? 'author: # key'
-              : |-
-                ? not a key
-                : still content
-              ? version
-              : "? quoted
-                : content"
-            ---
-            Body
-            SKILL, 'writing');
-        $this->assertSame([], $result['warnings']);
-        $this->assertSame("? leave this\n: unchanged\n\n", $result['document']['description'] ?? null);
-        $metadata = $result['document']['frontmatter']->metadata ?? null;
-        $this->assertNotNull($metadata);
-        $this->assertSame("? not a key\n: still content", $metadata->{'author: # key'});
-        $this->assertSame('? quoted : content', $metadata->version);
-    }
-
-    public function test_explicit_key_anchors_remain_available_to_later_values(): void
-    {
-        $yaml = "? &field name\n: writing\ndescription: *field\nmetadata:\n  ? &author author\n  : Alice\n  label: *author";
-        $result = (new SkillDocumentParser())->parse("---\n".$yaml."\n---\nBody", 'writing');
-        $this->assertSame([], $result['warnings']);
-        $this->assertSame('name', $result['document']['description'] ?? null);
-        $this->assertSame(['author' => 'Alice', 'label' => 'author'], get_object_vars($result['document']['frontmatter']->metadata));
-        $this->assertSame(['name', 'description', 'metadata'], array_keys(get_object_vars($result['document']['frontmatter'])));
-    }
-
-    public function test_explicit_alias_keys_resolve_preceding_scalar_anchors(): void
-    {
-        $yaml = "field: &field name\n? *field\n: writing\ndescription: Works\nmetadata:\n  label: &author author\n  ? *author\n  : Alice";
-        $result = (new SkillDocumentParser())->parse("---\n".$yaml."\n---\nBody", 'writing');
-        $this->assertSame([], $result['warnings']);
-        $this->assertSame('writing', $result['document']['name'] ?? null);
-        $this->assertSame(['label' => 'author', 'author' => 'Alice'], get_object_vars($result['document']['frontmatter']->metadata));
-    }
-
-    public function test_flow_explicit_keys_preserve_anchor_and_alias_scope(): void
-    {
-        $yaml = '{? &field name: writing, description: *field, metadata: {field: &author author, ? *author: Alice}}';
-        $result = (new SkillDocumentParser())->parse("---\n".$yaml."\n---\nBody", 'writing');
-        $this->assertSame([], $result['warnings']);
-        $this->assertSame('writing', $result['document']['name'] ?? null);
-        $this->assertSame('name', $result['document']['description'] ?? null);
-        $this->assertSame(['field' => 'author', 'author' => 'Alice'], get_object_vars($result['document']['frontmatter']->metadata));
-    }
-
     public function test_json_style_flow_strings_are_preserved(): void
     {
-        $yaml = '{"name":"writing","description":"literal, ? stuff", "metadata":{"text":"other, ? content", ? author: Alice}}';
+        $yaml = '{"name":"writing","description":"literal, ? stuff", "metadata":{"text":"other, ? content", "author":"Alice"}}';
         $result = (new SkillDocumentParser())->parse("---\n".$yaml."\n---\nBody", 'writing');
         $this->assertSame([], $result['warnings']);
         $this->assertSame('literal, ? stuff', $result['document']['description'] ?? null);
@@ -143,8 +57,7 @@ class SkillDocumentParserTest extends TestCase
                 {? text}
               multiline: 'Some text
                 {? text: keep}'
-              ? actual
-              : {? key: value}
+              actual: {key: value}
             ---
             Body
             SKILL, 'writing');
@@ -219,8 +132,6 @@ class SkillDocumentParserTest extends TestCase
             'hyphens' => ["name: -bad--name-\ndescription: Good", 'hyphens'],
             'name length' => ["name: ".str_repeat('é', 65)."\ndescription: Good", '64 characters'],
             'description length' => ["name: writing\ndescription: ".str_repeat('語', 1025), '1024 characters'],
-            'explicit omitted value' => [$base."\n? license", 'license must'],
-            'explicit omitted value before field' => ["? license\n".$base, 'license must'],
             'license type' => [$base."\nlicense: [MIT]", 'license must'],
             'tools type' => [$base."\nallowed-tools: [Read]", 'allowed-tools must'],
             'compatibility empty' => [$base."\ncompatibility: ''", 'compatibility must'],
@@ -243,10 +154,8 @@ class SkillDocumentParserTest extends TestCase
     public static function unusableDocuments(): array
     {
         return [
-            'duplicate aliased explicit key' => ["field: &field name\nname: writing\n? *field\n: duplicate\ndescription: Works"],
-            'undefined explicit alias' => ["? *missing\n: writing\ndescription: Works"],
-            'duplicate explicit key' => ["? name\n: writing\n? name\n: duplicate\ndescription: Works"],
-            'malformed explicit key' => ["? \"name\n: writing\ndescription: Works"],
+            'unsupported explicit block keys' => ["? name\n: writing\n? description\n: Works"],
+            'unsupported explicit flow keys' => ['{? name: writing, ? description: Works}'],
             'syntax' => ["name: writing\ndescription: [broken"],
             'top sequence' => ['[writing, description]'],
             'top scalar' => ['writing'],
