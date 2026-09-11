@@ -1,0 +1,8 @@
+/vendor/
+/composer.lock
+/.phpunit.cache/
+/.phpstan.cache/
+.agents
+.claude
+.codex
+.pi

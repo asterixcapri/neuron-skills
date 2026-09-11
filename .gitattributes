@@ -1,0 +1,19 @@
+# Tests, documentation and examples
+/tests export-ignore
+/docs export-ignore
+/examples export-ignore
+
+# Development and agent configuration
+/.scratch export-ignore
+/.github export-ignore
+/.gitignore export-ignore
+/.gitattributes export-ignore
+/AGENTS.md export-ignore
+/CLAUDE.md export-ignore
+/CONTEXT.md export-ignore
+/skills-lock.json export-ignore
+/phpstan.neon export-ignore
+/phpunit.xml.dist export-ignore
+
+# Consumers resolve their own dependencies
+/composer.lock export-ignore
