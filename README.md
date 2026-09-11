@@ -125,6 +125,29 @@ tools; `skill_resource` rejects binary content. The library never executes scrip
 Metadata such as `allowed-tools` does not enable tools or grant permissions:
 execution, file access and authorization remain the host agent's responsibility.
 
+### Running Skill Scripts
+
+Skills can include executable files in `scripts/`. To let your Neuron AI agent
+run them, register Neuron's `BashTool` alongside `SkillToolkit`:
+
+```php
+use NeuronAI\Tools\Toolkits\FileSystem\BashTool;
+
+// Add to the same agent configured with SkillToolkit above.
+$agent->addTool(new BashTool());
+```
+
+The agent can then call the `bash` tool with a `command`, such as
+`php scripts/check.php`, and set `working_directory` to the skill location
+returned by the `skill` tool. This lets scripts resolve relative paths to their
+bundled assets. The execution environment must have the required interpreter
+and dependencies installed.
+
+`SkillToolkit` supplies the document and resource location; `BashTool` executes
+the command. An application-specific execution tool can serve the same role.
+Registering an execution tool and managing its permissions are responsibilities
+of your application; skill metadata does not register it automatically.
+
 ## Custom Skills
 
 Create `.agents/skills/writing/SKILL.md`:
