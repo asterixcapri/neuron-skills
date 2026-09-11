@@ -13,6 +13,7 @@ use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\TrackByInputs;
 
 use function in_array;
+use function sprintf;
 
 class SkillResourceTool extends Tool implements HasRunKey
 {
@@ -51,7 +52,7 @@ class SkillResourceTool extends Tool implements HasRunKey
     public function __invoke(string $name, string $path): string
     {
         if (!in_array($name, $this->skillNames, true)) {
-            return "Skill \"{$name}\" is not available.";
+            return sprintf('Skill "%s" is not available.', $name);
         }
 
         try {
