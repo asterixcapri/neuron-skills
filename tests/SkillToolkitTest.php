@@ -83,6 +83,7 @@ class SkillToolkitTest extends TestCase
         $toolkit = new SkillToolkit(new FileSystemSkillStorage($this->skillsRoot));
         $tools = $toolkit->tools();
         $this->assertCount(2, $tools);
+        $this->assertSame([], $toolkit->diagnostics());
         $skillTool = $tools[0];
         $this->assertInstanceOf(SkillTool::class, $skillTool);
         $this->assertSame(['name'], $skillTool->getRequiredProperties());
@@ -131,6 +132,35 @@ class SkillToolkitTest extends TestCase
         ));
     }
 
+    public function test_diagnostics_stay_out_of_agent_context_while_tolerated_skill_loads(): void
+    {
+        file_put_contents($this->skillsRoot.'/writing/SKILL.md', "---\nname: écriture\ndescription: >-\n  Write\n  clearly\nlicense: MIT\n---\nUnicode skill body.");
+        $toolkit = new SkillToolkit(new FileSystemSkillStorage($this->skillsRoot));
+        $this->assertSame([['skill' => 'writing', 'message' => 'Declared name does not match the storage identifier.']], $toolkit->diagnostics());
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [
+                (clone $toolkit->tools()[0])->setCallId('unicode')->setInputs(['name' => 'écriture']),
+            ]),
+            new AssistantMessage('Loaded.'),
+        );
+        Agent::make()->setAiProvider($provider)->setInstructions('Be helpful.')->addTool($toolkit)
+            ->chat(new UserMessage('Write.'))->getMessage();
+        $prompt = $provider->getRecorded()[0]->systemPrompt ?? '';
+        $this->assertStringContainsString('écriture: Write clearly', $prompt);
+        $this->assertStringNotContainsString('storage identifier', $prompt);
+        $this->assertStringNotContainsString('MIT', $prompt);
+        $provider->assertSent(fn (RequestRecord $record): bool => $this->hasToolResult($record, 'Unicode skill body.'));
+    }
+
+    public function test_unusable_catalog_produces_diagnostics_but_no_tools_or_guidelines(): void
+    {
+        file_put_contents($this->skillsRoot.'/writing/SKILL.md', "---\nname: writing\ndescription: []\n---\nBody");
+        $toolkit = new SkillToolkit(new FileSystemSkillStorage($this->skillsRoot));
+        $this->assertNotEmpty($toolkit->diagnostics());
+        $this->assertSame([], $toolkit->tools());
+        $this->assertNull($toolkit->guidelines());
+    }
+
     public function test_agent_reads_a_resource_through_the_same_tool_loop(): void
     {
         $toolkit = new SkillToolkit(new FileSystemSkillStorage($this->skillsRoot));
@@ -171,18 +201,18 @@ class SkillToolkitTest extends TestCase
     public function test_agent_tracks_distinct_skill_and_resource_reads_separately(): void
     {
         $storage = new class () implements SkillStorageInterface {
-            public function packages(): array
+            public function skills(): array
             {
                 return ['analysis', 'writing'];
             }
 
-            public function read(string $package, string $path): string
+            public function read(string $skill, string $path): string
             {
                 if ($path === 'SKILL.md') {
-                    return "---\nname: {$package}\ndescription: {$package} skill\n---\n{$package} instructions.";
+                    return "---\nname: {$skill}\ndescription: {$skill} skill\n---\n{$skill} instructions.";
                 }
 
-                return "{$package}:{$path}";
+                return "{$skill}:{$path}";
             }
         };
         $toolkit = new SkillToolkit($storage);
@@ -338,17 +368,17 @@ class SkillToolkitTest extends TestCase
     public function test_tool_delegates_reads_to_the_configured_storage(): void
     {
         $storage = new class () implements SkillStorageInterface {
-            public ?string $requestedPackage = null;
+            public ?string $requestedSkill = null;
             public ?string $requestedPath = null;
 
-            public function packages(): array
+            public function skills(): array
             {
                 return ['remote'];
             }
 
-            public function read(string $package, string $path): string
+            public function read(string $skill, string $path): string
             {
-                $this->requestedPackage = $package;
+                $this->requestedSkill = $skill;
                 $this->requestedPath = $path;
 
                 return $path === 'SKILL.md'
@@ -357,14 +387,14 @@ class SkillToolkitTest extends TestCase
             }
         };
         $toolkit = new SkillToolkit($storage);
-        $storage->requestedPackage = null;
+        $storage->requestedSkill = null;
         $storage->requestedPath = null;
         $tool = $toolkit->tools()[1];
         $tool->setInputs(['name' => 'remote', 'path' => 'references/api.md']);
         $tool->execute();
 
         $this->assertSame('Remote resource.', $tool->getResult());
-        $this->assertSame('remote', $storage->requestedPackage);
+        $this->assertSame('remote', $storage->requestedSkill);
         $this->assertSame('references/api.md', $storage->requestedPath);
     }
 
@@ -373,12 +403,12 @@ class SkillToolkitTest extends TestCase
         $storage = new class () implements SkillStorageInterface {
             public int $reads = 0;
 
-            public function packages(): array
+            public function skills(): array
             {
                 return ['broken'];
             }
 
-            public function read(string $package, string $path): string
+            public function read(string $skill, string $path): string
             {
                 if ($this->reads++ === 0) {
                     return "---\nname: broken\ndescription: Broken skill\n---\nInstructions.";
@@ -402,12 +432,12 @@ class SkillToolkitTest extends TestCase
         $storage = new class () implements SkillStorageInterface {
             public int $reads = 0;
 
-            public function packages(): array
+            public function skills(): array
             {
                 return ['broken'];
             }
 
-            public function read(string $package, string $path): string
+            public function read(string $skill, string $path): string
             {
                 if ($this->reads++ === 0) {
                     return "---\nname: broken\ndescription: Broken skill\n---\nInstructions.";
@@ -435,14 +465,14 @@ class SkillToolkitTest extends TestCase
                 'second' => "---\nname: second\ndescription: Second skill\n---\nSecond.",
             ];
 
-            public function packages(): array
+            public function skills(): array
             {
                 return array_keys($this->manifests);
             }
 
-            public function read(string $package, string $path): string
+            public function read(string $skill, string $path): string
             {
-                return $path === 'SKILL.md' ? $this->manifests[$package] : $package;
+                return $path === 'SKILL.md' ? $this->manifests[$skill] : $skill;
             }
         };
         $toolkit = new SkillToolkit($storage);
