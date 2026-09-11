@@ -1,7 +1,7 @@
 # Skill interface and standards compliance
 
 Design status: approved by the user on 2026-09-11.
-Implementation status: in progress on `implement/skill-api-design`.
+Implementation status: implemented on `implement/skill-api-design`; all three tickets resolved.
 Implementation resumed at the user's request through `implement-spec`; this
 supersedes the earlier pause on 2026-09-11.
 
@@ -15,7 +15,7 @@ supersedes the earlier pause on 2026-09-11.
 - Full compliance with the official [Agent Skills specification](https://agentskills.io/specification)
   is required. Missing support must be implemented, not merely documented as a
   permanent limitation. This includes valid YAML forms and the optional fields
-  defined by the specification. Compliance has not yet been achieved or verified.
+  defined by the specification. The implementation and verification are recorded below.
 - Rename the storage operation `packages()` to `skills()` and its `$package`
   argument to `$skill`.
 - Support discovering skills from multiple configured directories in the same
@@ -91,11 +91,31 @@ location reporting, and expected versus unexpected runtime failures. Test throug
 the toolkit and an actual Neuron tool loop as well as the parser's document cases.
 Update the README and runnable example to the resulting public interface.
 
-The first toolkit/repository separation has been implemented. The storage rename,
-parser, diagnostics, full-document activation and location work are pending
-implementation. The user has confirmed the complete design and the grilling is
-closed. No conformance claim is justified until the implementation and
-corresponding checks are complete.
+All three implementation tickets are resolved. The storage rename, YAML parser,
+validation diagnostics, full-document activation, host location contract and
+ordered multiple-storage selection are implemented. The detailed loading policy
+and YAML compatibility checks are documented in
+[validation.md](../../docs/validation.md).
+
+## Implementation verification
+
+- Local checks passed on PHP 8.5.8: Composer strict validation, 121 PHPUnit tests
+  with 354 assertions, PHPStan and the runnable example. Dependency resolution
+  targets PHP 8.1; the GitHub Actions matrix covers PHP 8.1 through 8.5.
+- Standards review found no documented-rule violations. Its two maintenance
+  observations were addressed by centralizing source lookup and using the
+  storage interface directly in the test double.
+- Spec review findings were fixed and rechecked: numeric filesystem identifiers,
+  explicit YAML scalar keys in block and flow mappings, and their anchor/alias
+  scope. Regression cases also protect literal strings and original document
+  content during activation.
+- Actual Neuron tool loops use a deterministic provider to verify the content
+  supplied to the model. The host-tool scenario executes the activated script
+  file with its neighboring asset; it does not claim live-model inference.
+- Script execution, authorization, binary access, remote provisioning and
+  host-specific context management remain responsibilities of the host agent.
+  The toolkit supplies text reads and the configured opaque location, and never
+  enables tools from metadata or creates an execution environment.
 
 ## Research
 
