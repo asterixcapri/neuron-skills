@@ -26,7 +26,7 @@ class SkillTool extends Tool implements HasRunKey
         protected SkillRepository $repository,
         protected array $skillNames,
     ) {
-        parent::__construct('skill', 'Load an available skill\'s instructions.');
+        parent::__construct('skill', 'Load an available skill\'s complete SKILL.md and base location.');
     }
 
     protected function properties(): array
@@ -49,7 +49,13 @@ class SkillTool extends Tool implements HasRunKey
         }
 
         try {
-            return $this->repository->readInstructions($name);
+            $document = $this->repository->readInstructions($name);
+            $location = $this->repository->location($name);
+            $context = $location === null
+                ? 'Skill location: unavailable. Read resources with skill_resource; host file access is not established.'
+                : 'Skill location: '.$location;
+
+            return $context."\n\n".$document;
         } catch (ToolException $exception) {
             return $exception->getMessage();
         }

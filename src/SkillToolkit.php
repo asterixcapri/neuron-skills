@@ -45,11 +45,14 @@ class SkillToolkit extends AbstractToolkit
 
         return "Available skills:\n".implode("\n", $catalog)
             ."\nUse the `skill` tool to load a relevant skill's complete instructions before following them."
-            .' Skill instructions may reference other files in their package.'
-            .' Always load every referenced file with the `skill_resource` tool.'
+            .' Resolve relative references against the skill location returned on activation.'
+            .' Read only resources needed for the current task with `skill_resource` or authorized host tools.'
             .' The `skill` and `skill_resource` tools only read text and never execute scripts.'
-            .' If a loaded file is a script and an appropriate execution tool is available,'
-            .' use that separate tool to execute the loaded contents.';
+            .' To run a script, use an authorized host execution tool on the file at the skill location,'
+            .' preserving access to neighboring assets; executing script text alone may not be equivalent.'
+            .' Binary assets require appropriate host tools and are not loaded into context automatically.'
+            .' A location may be nonlocal or unavailable; host access and remote provisioning belong to the integration.'
+            .' Metadata such as allowed-tools does not enable tools or grant permissions; the agent controls authorization.';
     }
 
     public function provide(): array

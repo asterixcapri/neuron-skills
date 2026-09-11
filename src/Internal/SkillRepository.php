@@ -10,7 +10,6 @@ use NeuronAI\Skills\Storage\SkillStorageInterface;
 use function array_key_exists;
 use function sort;
 use function sprintf;
-use function trim;
 
 use const SORT_STRING;
 
@@ -59,7 +58,17 @@ class SkillRepository
             throw new ToolException(sprintf('Skill "%s" has invalid frontmatter.', $name));
         }
 
-        return trim($document['body']);
+        return $contents;
+    }
+
+    /** @throws ToolException */
+    public function location(string $name): ?string
+    {
+        if (!array_key_exists($name, $this->availableSkills)) {
+            throw new ToolException(sprintf('Skill "%s" is not available.', $name));
+        }
+
+        return $this->storage->location($this->availableSkills[$name]);
     }
 
     /** @throws ToolException */

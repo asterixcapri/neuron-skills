@@ -82,7 +82,15 @@ class FileSystemSkillStorageTest extends TestCase
         $storage = new FileSystemSkillStorage($this->skillsRoot);
 
         $this->assertSame(['shared-skill'], $storage->skills());
+        $this->assertSame(realpath($this->outsideRoot.'/shared-skill'), $storage->location('shared-skill'));
         $this->assertSame('Shared guide.', $storage->read('shared-skill', 'guide.md'));
+    }
+
+    public function test_unknown_skill_location_is_an_expected_failure(): void
+    {
+        $this->expectException(ToolException::class);
+        $this->expectExceptionMessage('Skill "missing" is not available.');
+        (new FileSystemSkillStorage($this->skillsRoot))->location('missing');
     }
 
     public function test_reads_scripts_as_text_without_executing_them(): void

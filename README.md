@@ -81,12 +81,22 @@ The toolkit registers two tools that the agent can call:
 
 | Tool | Purpose | Inputs |
 | --- | --- | --- |
-| `skill` | Load a skill's instructions. | `name` |
+| `skill` | Load the complete original `SKILL.md` and base location. | `name` |
 | `skill_resource` | Read a supporting file from that skill. | `name`, `path` |
 
 Resource paths are relative to the skill, such as `references/style.md`.
-Both tools read text. Executing scripts or writing generated code to files
-requires separate tools on your agent.
+Activation preserves the original frontmatter and Markdown, including optional
+and extension metadata. The initial catalog contains only names and descriptions.
+Read only the resources needed for the task; activation does not read references,
+scripts or binary assets automatically.
+
+Both tools read text. The filesystem adapter reports the canonical skill directory,
+so authorized host tools can resolve `scripts/check.php` against that location and
+execute the actual file with access to neighboring assets. Executing script text
+alone may lose that context. Binary assets are available through appropriate host
+tools; `skill_resource` rejects binary content. The library never executes scripts.
+Metadata such as `allowed-tools` does not enable tools or grant permissions:
+execution, file access and authorization remain the host agent's responsibility.
 
 ## Custom Skills
 
@@ -135,7 +145,13 @@ preserved without granting permissions. See the [validation policy](docs/validat
 for field checks, YAML behavior and the distinction between warnings and exclusion.
 
 Custom adapters implement `SkillStorageInterface::skills(): array` to enumerate
-storage identifiers and `read(string $skill, string $path): string` to read files.
+storage identifiers, `read(string $skill, string $path): string` to read files,
+and `location(string $skill): ?string` for the host-accessible base location.
+Both reads and location use the source identifier, even when the declared name
+differs. Return `null` when no host-accessible location exists: skill resource
+reads still work, but host file access is not implied. Nonlocal locations such as
+`skills://workspace/writing` remain opaque; the host must provide any remote
+provisioning and tools that understand them. No download or local path is invented.
 
 Expected read failures, such as an unknown skill or a missing file, are returned
 as readable messages so the agent can respond to them. Unexpected failures
@@ -143,8 +159,9 @@ propagate as exceptions.
 
 ## Runnable Example
 
-The [included example](examples/basic.php) loads a writing skill and its guide
-through a Neuron agent. It uses a fake AI provider, so no API key is needed.
+The [included example](examples/basic.php) activates a writing skill, reads its
+guide and uses an explicitly registered host tool to run its script with a
+neighboring asset through a Neuron agent. It uses a fake AI provider, so no API key is needed.
 Run it from this library's checkout:
 
 ```sh

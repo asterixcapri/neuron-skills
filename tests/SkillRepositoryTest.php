@@ -16,7 +16,7 @@ use function array_keys;
 
 class SkillRepositoryTest extends TestCase
 {
-    public function test_builds_a_deterministic_catalog_and_removes_frontmatter_from_instructions(): void
+    public function test_builds_a_deterministic_catalog_and_preserves_complete_instructions(): void
     {
         $storage = new InMemorySkillStorage([
             'writing' => [
@@ -32,7 +32,8 @@ class SkillRepositoryTest extends TestCase
             ['name' => 'analysis', 'description' => 'Analyse evidence'],
             ['name' => 'writing', 'description' => 'Write clearly: for humans'],
         ], $repository->catalog());
-        $this->assertSame('Write directly.', $repository->readInstructions('writing'));
+        $this->assertSame($storage->files['writing']['SKILL.md'], $repository->readInstructions('writing'));
+        $this->assertSame($storage->files['analysis']['SKILL.md'], $repository->readInstructions('analysis'));
     }
 
     /** @dataProvider invalidSkills */
@@ -70,7 +71,7 @@ class SkillRepositoryTest extends TestCase
             ],
         ]));
         $this->assertSame([['name' => 'shared', 'description' => 'First']], $repository->catalog());
-        $this->assertSame('First body', $repository->readInstructions('shared'));
+        $this->assertSame("---\nname: shared\ndescription: First\n---\nFirst body", $repository->readInstructions('shared'));
         $this->assertSame('First guide', $repository->readResource('shared', 'guide.md'));
         $diagnostics = $repository->diagnostics();
         $this->assertSame('a-invalid', $diagnostics[0]['skill']);
@@ -94,7 +95,7 @@ class SkillRepositoryTest extends TestCase
         $this->assertSame([
             ['name' => 'writing', 'description' => 'Original description'],
         ], $repository->catalog());
-        $this->assertSame('Changed body.', $repository->readInstructions('writing'));
+        $this->assertSame($storage->files['writing']['SKILL.md'], $repository->readInstructions('writing'));
         $this->assertSame('Changed guide.', $repository->readResource('writing', 'guide.md'));
         $this->expectException(ToolException::class);
         $this->expectExceptionMessage('Skill "added" is not available.');
@@ -181,6 +182,11 @@ class SkillRepositoryTest extends TestCase
     public function test_unexpected_storage_failures_remain_exceptions(): void
     {
         $storage = new class () implements SkillStorageInterface {
+            public function location(string $skill): ?string
+            {
+                return null;
+            }
+
             public function skills(): array
             {
                 return ['broken'];
@@ -208,6 +214,11 @@ class InMemorySkillStorage implements SkillStorageInterface
 
     /** @var array<string, array<string, string>> */
     public array $failures = [];
+
+    public function location(string $skill): ?string
+    {
+        return null;
+    }
 
     public function skills(): array
     {
