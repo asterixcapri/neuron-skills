@@ -23,7 +23,7 @@ final class SkillDocumentParser
         }
 
         try {
-            $metadata = $this->parseYaml($parts['frontmatter']);
+            $metadata = $this->parseMetadata($parts['frontmatter']);
         } catch (ParseException $exception) {
             return ['document' => null, 'warnings' => ['Unparseable YAML: '.$exception->getMessage()]];
         }
@@ -97,7 +97,7 @@ final class SkillDocumentParser
     }
 
     /** @throws ParseException */
-    private function parseYaml(string $yaml): mixed
+    private function parseMetadata(string $yaml): mixed
     {
         return Yaml::parse(
             $yaml,
