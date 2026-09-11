@@ -13,7 +13,14 @@ use NeuronAI\Tools\Tool;
 
 require dirname(__DIR__).'/vendor/autoload.php';
 
-$toolkit = new SkillToolkit(new FileSystemSkillStorage(__DIR__.'/skills'));
+// Project skills precede user skills. Each adapter owns one directory.
+$toolkit = new SkillToolkit(
+    new FileSystemSkillStorage(__DIR__.'/skills'),
+    new FileSystemSkillStorage(__DIR__.'/user-skills'),
+);
+foreach ($toolkit->diagnostics() as $diagnostic) {
+    echo $diagnostic['skill'].': '.$diagnostic['message'].PHP_EOL;
+}
 [$skillTool, $resourceTool] = $toolkit->tools();
 $activation = (clone $skillTool)->setCallId('load_skill')->setInputs(['name' => 'writing']);
 
@@ -42,15 +49,22 @@ $checkTool = (new Tool('check_writing', 'Run the permitted writing check.'))
 
 // Deterministic tool calls demonstrate the real Neuron loop without LLM inference.
 $provider = new FakeAIProvider(
-    new ToolCallMessage(null, [$activation]),
     new ToolCallMessage(null, [
+        $activation,
+        (clone $skillTool)->setCallId('load_analysis')->setInputs(['name' => 'analysis']),
+    ]),
+    new ToolCallMessage(null, [
+        (clone $resourceTool)->setCallId('read_analysis')->setInputs([
+            'name' => 'analysis',
+            'path' => 'guide.md',
+        ]),
         (clone $resourceTool)->setCallId('read_style')->setInputs([
             'name' => 'writing',
             'path' => 'references/style.md',
         ]),
     ]),
     new ToolCallMessage(null, [(clone $checkTool)->setCallId('check')->setInputs([])]),
-    new AssistantMessage('Loaded the complete writing skill, read its guide and ran the host check.'),
+    new AssistantMessage('Loaded project writing and user analysis skills, read their guides and ran the host check.'),
 );
 
 $agent = Agent::make()
