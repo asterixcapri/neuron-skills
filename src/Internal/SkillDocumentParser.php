@@ -86,11 +86,12 @@ final class SkillDocumentParser
     }
     private function parseYaml(string $yaml): mixed
     {
-        $yaml = $this->normalizeFlowKeys($yaml);
+        $entries = [];
+        $yaml = $this->normalizeFlowKeys($yaml, $entries);
         $flags = Yaml::PARSE_OBJECT_FOR_MAP | Yaml::PARSE_EXCEPTION_ON_INVALID_TYPE;
         while (true) {
             try {
-                return Yaml::parse($yaml, $flags);
+                return $this->restoreExplicitKeys(Yaml::parse($yaml, $flags), $entries);
             } catch (ParseException $exception) {
                 // Symfony identifies the syntax node, so scalar contents are never rewritten.
                 $lines = explode("\n", str_replace("\r\n", "\n", $yaml));
@@ -112,7 +113,6 @@ final class SkillDocumentParser
                     throw $exception;
                 }
                 $indent = $match[1];
-                $keyYaml = 'key: '.($match[2] ?? '')."\n";
                 for ($end = $start + 1; $end < count($lines); ++$end) {
                     $line = $lines[$end];
                     if (preg_match('/^'.preg_quote($indent, '/').':(?:[ \t]|$)/', $line) === 1) {
@@ -122,31 +122,71 @@ final class SkillDocumentParser
                         && strlen($line) - strlen(ltrim($line, ' ')) <= strlen($indent)) {
                         break;
                     }
-                    $keyYaml .= substr($line, min(strlen($indent), strlen($line)))."\n";
                 }
                 $hasValue = isset($lines[$end]) && preg_match('/^'.preg_quote($indent, '/').':(?:[ \t]|$)/', $lines[$end]) === 1;
-                // Scalar syntax (quotes, tags, comments, folding) remains Symfony's responsibility.
-                $parsed = Yaml::parse($keyYaml, $flags);
-                $key = $parsed instanceof stdClass ? ($parsed->key ?? null) : null;
-                if (!is_scalar($key) && $key !== null) {
-                    throw $exception;
-                }
-                $implicit = trim(Yaml::dump((string) $key));
-                for ($index = $start; $index < $end; ++$index) {
-                    $lines[$index] = $indent.'# explicit scalar key';
-                }
+                // Keep key nodes in the document so Symfony resolves anchors in their original scope.
+                [$keyMarker, $valueMarker] = $this->explicitEntry($yaml, $entries);
+                $lines[$start] = $indent.$keyMarker.': '.($match[2] ?? '');
                 if ($hasValue) {
-                    $lines[$end] = $indent.$implicit.substr($lines[$end], strlen($indent));
+                    $lines[$end] = $indent.$valueMarker.substr($lines[$end], strlen($indent));
                 } else {
-                    $lines[$start] = $indent.$implicit.': null';
+                    array_splice($lines, $end, 0, [$indent.$valueMarker.': null']);
                 }
                 $yaml = implode("\n", $lines);
             }
         }
     }
 
-    /** Normalize only explicit key indicators, leaving scalar interpretation to Symfony. */
-    private function normalizeFlowKeys(string $yaml): string
+    /**
+     * @param array<string, string> $entries
+     * @return array{string, string}
+     */
+    private function explicitEntry(string $yaml, array &$entries): array
+    {
+        $marker = '__skill_explicit_'.count($entries);
+        while (str_contains($yaml, $marker)) {
+            $marker .= '_';
+        }
+        $entries[$marker.'_key'] = $marker.'_value';
+        return [$marker.'_key', $marker.'_value'];
+    }
+
+    /** @param array<string, string> $entries */
+    private function restoreExplicitKeys(mixed $node, array $entries): mixed
+    {
+        if (is_array($node)) {
+            return array_map(fn (mixed $value): mixed => $this->restoreExplicitKeys($value, $entries), $node);
+        }
+        if (!$node instanceof stdClass) {
+            return $node;
+        }
+        $result = new stdClass();
+        foreach (get_object_vars($node) as $key => $value) {
+            if (in_array($key, $entries, true)) {
+                continue;
+            }
+            if (isset($entries[$key])) {
+                if (!is_scalar($value) && $value !== null) {
+                    throw new ParseException('Mapping keys must be scalars.');
+                }
+                $actualKey = (string) $value;
+                $value = $node->{$entries[$key]};
+            } else {
+                $actualKey = (string) $key;
+            }
+            if (property_exists($result, $actualKey)) {
+                throw new ParseException('Duplicate key "'.$actualKey.'" detected.');
+            }
+            $result->{$actualKey} = $this->restoreExplicitKeys($value, $entries);
+        }
+        return $result;
+    }
+
+    /**
+     * Normalize explicit entries without interpreting their scalar nodes.
+     * @param array<string, string> $entries
+     */
+    private function normalizeFlowKeys(string $yaml, array &$entries): string
     {
         $lines = explode("\n", $yaml);
         $collections = [];
@@ -204,6 +244,12 @@ final class SkillDocumentParser
                 }
                 $last = array_key_last($collections);
                 if ($last !== null) {
+                    if (($char === '}' || $char === ',') && isset($collections[$last]['explicit'])) {
+                        $insertion = ', '.$collections[$last]['explicit'].': null';
+                        $line = substr_replace($line, $insertion, $index, 0);
+                        $index += strlen($insertion);
+                        unset($collections[$last]['explicit']);
+                    }
                     if ($char === '}' || $char === ']') {
                         array_pop($collections);
                         $nodeStart = false;
@@ -216,12 +262,22 @@ final class SkillDocumentParser
                     }
                     if ($char === '?' && $nodeStart && $collections[$last]['map']
                         && $collections[$last]['key'] && ($next === '' || ctype_space($next))) {
-                        $line[$index] = ' ';
+                        [$keyMarker, $valueMarker] = $this->explicitEntry($yaml, $entries);
+                        $collections[$last]['explicit'] = $valueMarker;
+                        $replacement = $keyMarker.': ';
+                        $line = substr_replace($line, $replacement, $index, 1);
+                        $index += strlen($replacement) - 1;
                         continue;
                     }
                 }
                 if ($char === ':' && ($quotedNode || $next === '' || ctype_space($next) || ($last !== null && str_contains('{}[],', $next)))) {
                     if ($last !== null) {
+                        if (isset($collections[$last]['explicit'])) {
+                            $replacement = ', '.$collections[$last]['explicit'].': ';
+                            $line = substr_replace($line, $replacement, $index, 1);
+                            $index += strlen($replacement) - 1;
+                            unset($collections[$last]['explicit']);
+                        }
                         $collections[$last]['key'] = false;
                     }
                     $nodeStart = true;
