@@ -171,7 +171,7 @@ Diagnostics are not printed or sent to the model automatically. Optional fields
 preserved without granting permissions. See the [validation policy](docs/validation.md)
 for field checks, YAML behavior and the distinction between warnings and exclusion.
 
-Custom adapters implement `SkillStorageInterface::skills(): array` to enumerate
+Custom adapters implement `SkillStorageInterface::list(): array` to enumerate
 storage identifiers, `read(string $skill, string $path): string` to read files,
 and `location(string $skill): ?string` for the host-accessible base location.
 Both reads and location use the source identifier, even when the declared name
