@@ -17,13 +17,14 @@ final class SkillDocumentParser
      */
     public function parse(string $contents, string $skill): array
     {
-        if (preg_match('/\A(?:\xEF\xBB\xBF)?---[^\S\r\n]*\r?\n(.*?)\r?\n---[^\S\r\n]*(?:\r?\n|\z)(.*)\z/s', $contents, $matches) !== 1) {
+        $parts = $this->splitDocument($contents);
+        if ($parts === null) {
             return ['document' => null, 'warnings' => ['SKILL.md must begin with YAML frontmatter delimited by ---.']];
         }
 
         try {
             $metadata = Yaml::parse(
-                $matches[1]."\n",
+                $parts['frontmatter'],
                 Yaml::PARSE_OBJECT_FOR_MAP | Yaml::PARSE_EXCEPTION_ON_INVALID_TYPE,
             );
         } catch (ParseException $exception) {
@@ -83,8 +84,18 @@ final class SkillDocumentParser
         }
 
         return [
-            'document' => ['name' => $name, 'description' => $description, 'body' => $matches[2], 'frontmatter' => $metadata],
+            'document' => ['name' => $name, 'description' => $description, 'body' => $parts['body'], 'frontmatter' => $metadata],
             'warnings' => $warnings,
         ];
+    }
+
+    /** @return array{frontmatter: string, body: string}|null */
+    private function splitDocument(string $contents): ?array
+    {
+        if (preg_match('/\A(?:\xEF\xBB\xBF)?---[^\S\r\n]*\r?\n(.*?)\r?\n---[^\S\r\n]*(?:\r?\n|\z)(.*)\z/s', $contents, $matches) !== 1) {
+            return null;
+        }
+
+        return ['frontmatter' => $matches[1]."\n", 'body' => $matches[2]];
     }
 }
