@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Skills\Tools\Toolkits\Skills;
+namespace NeuronAI\Skills\Tools;
 
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Skills\SkillRepository;

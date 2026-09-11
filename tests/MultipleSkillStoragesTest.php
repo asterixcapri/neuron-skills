@@ -11,7 +11,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Skills\SkillRepository;
-use NeuronAI\Skills\Tools\Toolkits\Skills\SkillToolkit;
+use NeuronAI\Skills\Tools\SkillToolkit;
 use NeuronAI\Skills\Storage\FileSystemSkillStorage;
 use NeuronAI\Skills\Storage\SkillStorageInterface;
 use NeuronAI\Testing\FakeAIProvider;
