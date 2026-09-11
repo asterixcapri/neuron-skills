@@ -183,32 +183,21 @@ For the format supported by this library:
 If you add skills while your application is running, create a new storage and
 toolkit to make them available.
 
+## Custom Storage
+
+Implement `SkillStorageInterface` with `list()`, `read($skill, $path)` and
+`location($skill)`. Use storage identifiers for reads and locations, even when
+they differ from declared skill names. Return `null` if no host-accessible
+location exists; remote locations require matching host tools and provisioning.
+
 ## Error Handling
 
-Skills with unusable YAML or missing, empty or non-string names/descriptions are
-omitted. Usable skills with nonconforming metadata remain loadable with warnings,
-including names that differ from their directories. Within a storage, the first
-usable candidate in alphabetical identifier order wins duplicate declared names.
-If no usable skills are available, the toolkit adds no tools or guidelines.
+Unusable skill documents are skipped; recoverable validation issues produce
+warnings. Inspect `$toolkit->diagnostics()` for `skill` and `message` entries.
+Nothing is printed or sent to the model automatically.
 
-Inspect `$toolkit->diagnostics()` for an array of `skill` and `message` entries.
-Diagnostics are not printed or sent to the model automatically. Optional fields
-(`license`, `compatibility`, `metadata`, `allowed-tools`) and extensions are
-preserved without granting permissions. See the [validation policy](docs/validation.md)
-for field checks, YAML behavior and the distinction between warnings and exclusion.
-
-Custom adapters implement `SkillStorageInterface::list(): array` to enumerate
-storage identifiers, `read(string $skill, string $path): string` to read files,
-and `location(string $skill): ?string` for the host-accessible base location.
-Both reads and location use the source identifier, even when the declared name
-differs. Return `null` when no host-accessible location exists: skill resource
-reads still work, but host file access is not implied. Nonlocal locations such as
-`skills://workspace/writing` remain opaque; the host must provide any remote
-provisioning and tools that understand them. No download or local path is invented.
-
-Expected read failures, such as an unknown skill or a missing file, are returned
-as readable messages so the agent can respond to them. Unexpected failures
-propagate as exceptions.
+Expected read failures become messages the agent can read. Unexpected exceptions
+propagate. See the [validation policy](docs/validation.md) for the detailed rules.
 
 ## Runnable Example
 
