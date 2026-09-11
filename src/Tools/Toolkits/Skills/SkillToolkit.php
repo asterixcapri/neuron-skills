@@ -13,15 +13,11 @@ use function implode;
 
 class SkillToolkit extends AbstractToolkit
 {
-    /** @var array<int, array{name: string, description: string}> */
-    protected array $catalog;
-
     protected SkillRepository $repository;
 
     public function __construct(SkillStorageInterface $storage, SkillStorageInterface ...$fallbackStorages)
     {
         $this->repository = new SkillRepository($storage, ...$fallbackStorages);
-        $this->catalog = $this->repository->catalog();
     }
 
     /** @return list<array{skill: string, message: string}> */
@@ -32,16 +28,17 @@ class SkillToolkit extends AbstractToolkit
 
     public function guidelines(): ?string
     {
-        if ($this->catalog === []) {
+        $catalog = $this->repository->catalog();
+        if ($catalog === []) {
             return null;
         }
 
-        $catalog = array_map(
+        $entries = array_map(
             fn (array $skill): string => "- {$skill['name']}: {$skill['description']}",
-            $this->catalog,
+            $catalog,
         );
 
-        return "Available skills:\n".implode("\n", $catalog)
+        return "Available skills:\n".implode("\n", $entries)
             ."\nUse the `skill` tool to load a relevant skill's complete instructions before following them."
             .' Resolve relative references against the skill location returned on activation.'
             .' Read only resources needed for the current task with `skill_resource` or authorized host tools.'
@@ -55,13 +52,14 @@ class SkillToolkit extends AbstractToolkit
 
     public function provide(): array
     {
-        if ($this->catalog === []) {
+        $catalog = $this->repository->catalog();
+        if ($catalog === []) {
             return [];
         }
 
         $names = array_map(
             fn (array $skill): string => $skill['name'],
-            $this->catalog,
+            $catalog,
         );
 
         return [
