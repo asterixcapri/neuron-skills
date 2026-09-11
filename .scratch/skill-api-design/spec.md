@@ -16,7 +16,7 @@ supersedes the earlier pause on 2026-09-11.
   is required. Missing support must be implemented, not merely documented as a
   permanent limitation. This includes valid YAML forms and the optional fields
   defined by the specification. The implementation and verification are recorded below.
-- Rename the storage operation `packages()` to `skills()` and its `$package`
+- Rename the storage operation `packages()` to `list()` and its `$package`
   argument to `$skill`.
 - Support discovering skills from multiple configured directories in the same
   toolkit. The previous single-root restriction is no longer sufficient.

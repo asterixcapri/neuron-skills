@@ -9,7 +9,7 @@ use NeuronAI\Exceptions\ToolException;
 interface SkillStorageInterface
 {
     /** @return string[] */
-    public function skills(): array;
+    public function list(): array;
 
     /**
      * Host-accessible base location, or null when unavailable. Not necessarily a local path.

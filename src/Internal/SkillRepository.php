@@ -90,7 +90,7 @@ class SkillRepository
 
     protected function buildCatalog(SkillStorageInterface $storage, int $ordinal): void
     {
-        $skills = $storage->skills();
+        $skills = $storage->list();
         sort($skills, SORT_STRING);
 
         foreach ($skills as $skill) {

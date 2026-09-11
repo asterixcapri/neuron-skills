@@ -8,7 +8,7 @@
 
 Riferimento: [spec approvata](../spec.md). Il lavoro riguarda le modifiche ancora da implementare; la separazione iniziale tra Toolkit, Repository interno e Tool è già presente.
 
-- [x] La scoperta utilizza `skills()` e l'argomento `$skill` nello storage, aggiornando tutti i consumatori e gli adapter di test. Le interfacce conservano il suffisso `Interface`.
+- [x] La scoperta utilizza `list()` e l'argomento `$skill` nello storage, aggiornando tutti i consumatori e gli adapter di test. Le interfacce conservano il suffisso `Interface`.
 - [x] Un parser interno dedicato separa frontmatter e Markdown, usa `symfony/yaml` e applica le regole Agent Skills. Il Repository coordina scoperta, catalogo e letture senza tornare a essere un'interfaccia pubblica.
 - [x] La dipendenza YAML e le altre dipendenze necessarie mantengono il supporto a PHP 8.1. Le forme YAML previste per i documenti delle skill, incluse stringhe quotate, blocchi multilinea, commenti e mappe, vengono interpretate correttamente.
 - [x] I campi obbligatori e quelli opzionali `license`, `compatibility`, `metadata` e `allowed-tools` vengono interpretati e validati secondo la specifica. I nomi Unicode e i limiti in caratteri non vengono trattati come soli caratteri ASCII o conteggi di byte.

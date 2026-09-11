@@ -61,7 +61,7 @@ class MultipleSkillStoragesTest extends TestCase
         $this->skill('user', '123', "'123'", 'User');
         $project = new FileSystemSkillStorage($this->root.'/project');
         $user = new FileSystemSkillStorage($this->root.'/user');
-        $this->assertSame(['123'], $project->skills());
+        $this->assertSame(['123'], $project->list());
         foreach ([new SkillToolkit($project), new SkillToolkit($project, $user)] as $toolkit) {
             $this->assertStringContainsString('Project', $toolkit->guidelines() ?? '');
             [$activation, $resource] = $toolkit->tools();
@@ -184,7 +184,7 @@ class TrackedSkillStorage implements SkillStorageInterface
     {
     }
 
-    public function skills(): array
+    public function list(): array
     {
         return array_keys($this->documents);
     }

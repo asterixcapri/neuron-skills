@@ -187,7 +187,7 @@ class SkillRepositoryTest extends TestCase
                 return null;
             }
 
-            public function skills(): array
+            public function list(): array
             {
                 return ['broken'];
             }
@@ -220,7 +220,7 @@ class InMemorySkillStorage implements SkillStorageInterface
         return null;
     }
 
-    public function skills(): array
+    public function list(): array
     {
         return array_keys($this->files);
     }

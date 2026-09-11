@@ -197,7 +197,7 @@ class SkillToolkitTest extends TestCase
                 return null;
             }
 
-            public function skills(): array
+            public function list(): array
             {
                 return ['analysis', 'writing'];
             }
@@ -372,7 +372,7 @@ class SkillToolkitTest extends TestCase
                 return null;
             }
 
-            public function skills(): array
+            public function list(): array
             {
                 return ['remote'];
             }
@@ -409,7 +409,7 @@ class SkillToolkitTest extends TestCase
                 return null;
             }
 
-            public function skills(): array
+            public function list(): array
             {
                 return ['broken'];
             }
@@ -443,7 +443,7 @@ class SkillToolkitTest extends TestCase
                 return null;
             }
 
-            public function skills(): array
+            public function list(): array
             {
                 return ['broken'];
             }
@@ -481,7 +481,7 @@ class SkillToolkitTest extends TestCase
                 return null;
             }
 
-            public function skills(): array
+            public function list(): array
             {
                 return array_keys($this->manifests);
             }
@@ -561,7 +561,7 @@ class SkillToolkitTest extends TestCase
             {
             }
 
-            public function skills(): array
+            public function list(): array
             {
                 return ['writing'];
             }
@@ -609,7 +609,7 @@ class SkillToolkitTest extends TestCase
             {
             }
 
-            public function skills(): array
+            public function list(): array
             {
                 return ['source-id'];
             }
