@@ -31,6 +31,7 @@ use function is_dir;
 use function mkdir;
 use function random_bytes;
 use function rmdir;
+use function sprintf;
 use function sys_get_temp_dir;
 use function unlink;
 
@@ -272,7 +273,7 @@ class SkillToolkitTest extends TestCase
         $tool->setInputs(['name' => 'writing', 'path' => "resource\0.md"]);
         $tool->execute();
 
-        $this->assertSame("Resource path \"resource\0.md\" is invalid.", $tool->getResult());
+        $this->assertSame(sprintf('Resource path "%s" is invalid.', "resource\0.md"), $tool->getResult());
     }
 
     public function test_empty_resource_path_is_invalid_and_cannot_load_instructions(): void

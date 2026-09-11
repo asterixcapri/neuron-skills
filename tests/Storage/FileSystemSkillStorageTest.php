@@ -19,6 +19,7 @@ use function is_readable;
 use function mkdir;
 use function random_bytes;
 use function rmdir;
+use function sprintf;
 use function str_repeat;
 use function symlink;
 use function sys_get_temp_dir;
@@ -137,7 +138,7 @@ class FileSystemSkillStorageTest extends TestCase
         mkdir($this->skillsRoot.'/writing');
 
         $this->assertStorageError(
-            "Resource path \"{$path}\" is invalid.",
+            sprintf('Resource path "%s" is invalid.', $path),
             fn (): string => (new FileSystemSkillStorage($this->skillsRoot))->read('writing', $path),
         );
     }

@@ -11,6 +11,7 @@ use NeuronAI\Skills\Storage\SkillStorageInterface;
 use PHPUnit\Framework\TestCase;
 
 use function array_key_exists;
+use function sprintf;
 use function str_repeat;
 use function array_keys;
 
@@ -231,10 +232,10 @@ class InMemorySkillStorage implements SkillStorageInterface
             throw new ToolException($this->failures[$skill][$path]);
         }
         if (!array_key_exists($skill, $this->files)) {
-            throw new ToolException("Skill \"{$skill}\" is not available.");
+            throw new ToolException(sprintf('Skill "%s" is not available.', $skill));
         }
         if (!array_key_exists($path, $this->files[$skill])) {
-            throw new ToolException("Resource \"{$path}\" was not found in skill \"{$skill}\".");
+            throw new ToolException(sprintf('Resource "%s" was not found in skill "%s".', $path, $skill));
         }
 
         return $this->files[$skill][$path];
