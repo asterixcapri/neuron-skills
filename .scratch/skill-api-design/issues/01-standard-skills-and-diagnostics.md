@@ -18,7 +18,7 @@ Riferimento: [spec approvata](../spec.md). Il lavoro riguarda le modifiche ancor
 - [x] Nella singola sorgente, le collisioni tra nomi dichiarati sono risolte scegliendo il primo candidato utilizzabile in ordine alfabetico degli identificatori. I candidati oscurati sono segnalati e quelli inutilizzabili non riservano il nome.
 - [x] `SkillToolkit::diagnostics()` restituisce gli avvisi raccolti dal Repository come elenco di elementi con `skill` e `message`, oppure un elenco vuoto. Non stampa automaticamente, non invia gli avvisi al modello e non richiede logger, callback o nuove classi pubbliche.
 - [x] Il catalogo iniziale contiene solo nomi e descrizioni. Un catalogo vuoto non aggiunge Tool o istruzioni all'agent. Il contratto già approvato sugli errori attesi e imprevisti continua a funzionare.
-- [x] I test verificano documenti validi, campi opzionali, Unicode, violazioni tollerate, esclusioni e diagnostica, includendo caricamento tramite Toolkit e ciclo Tool di un agent Neuron. Il confronto con la specifica identifica e risolve eventuali lacune del sottoinsieme YAML di Symfony, senza considerare la sola dipendenza una prova di conformità.
+- [x] I test verificano documenti validi, campi opzionali, Unicode, violazioni tollerate, esclusioni e diagnostica, includendo caricamento tramite Toolkit e ciclo Tool di un agent Neuron. Per successiva decisione dell’utente, il supporto sintattico segue Symfony YAML senza adattamenti personalizzati; i limiti sono documentati.
 - [x] README e documentazione della politica di validazione descrivono il comportamento consegnato. I controlli Composer, PHPUnit e PHPStan appropriati alla modifica passano.
 
 Fonti: [specifica Agent Skills](https://agentskills.io/specification), [guida per i client](https://agentskills.io/client-implementation/adding-skills-support), [audit di conformità](../research/agent-skills-conformance.md).
@@ -29,3 +29,8 @@ Delivered the internal YAML parser, lenient validation, deterministic name selec
 storage terminology and toolkit diagnostics. See [validation policy](../../../docs/validation.md).
 Validation: Composer PHP 8.1 dependency resolution and strict validation; PHPUnit
 (85 tests, 207 assertions); PHPStan; runnable Neuron example.
+
+## Subsequent decision
+
+The user requested Symfony YAML as-is. Removed the custom explicit-key
+normalization layer; field validation and diagnostics remain in place.

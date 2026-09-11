@@ -153,6 +153,9 @@ For the format supported by this library:
   multiline blocks are supported. Names support Unicode letters and numbers.
 - Give the skill a description of 1–1024 characters that explains when to use it.
 - Place the Markdown instructions after the closing `---`.
+- YAML syntax follows Symfony YAML 6.4 as provided. Use ordinary `key: value`
+  mappings; explicit mapping keys (`? key`) are not supported. There is no
+  custom YAML compatibility layer.
 
 If you add skills while your application is running, create a new storage and
 toolkit to make them available.

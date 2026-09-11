@@ -12,10 +12,10 @@ supersedes the earlier pause on 2026-09-11.
 - Reads return content or throw. Tools convert expected failures to model-readable
   messages; unexpected failures propagate. See
   [ADR-0001](../../docs/adr/0001-toolkit-owns-skill-access.md).
-- Full compliance with the official [Agent Skills specification](https://agentskills.io/specification)
-  is required. Missing support must be implemented, not merely documented as a
-  permanent limitation. This includes valid YAML forms and the optional fields
-  defined by the specification. The implementation and verification are recorded below.
+- Validate the fields defined by the official [Agent Skills specification](https://agentskills.io/specification).
+  By subsequent user decision, YAML syntax support follows `symfony/yaml` as-is.
+  Do not implement a custom YAML compatibility layer; document its limitations.
+  This supersedes the original requirement to implement every valid YAML form.
 - Rename the storage operation `packages()` to `list()` and its `$package`
   argument to `$skill`.
 - Support discovering skills from multiple configured directories in the same
@@ -47,8 +47,8 @@ supersedes the earlier pause on 2026-09-11.
   support. An internal skill document parser separates frontmatter from Markdown,
   delegates YAML syntax to Symfony, and applies Agent Skills validation with
   diagnostics. The repository continues to coordinate discovery and reading.
-  Symfony's documented YAML subset must be checked against valid Agent Skills
-  documents; adding the dependency alone does not establish full compliance.
+  Accept the YAML subset provided by Symfony; validation of skill fields remains
+  the responsibility of this parser.
 - On activation, return the complete `SKILL.md`, including its original
   frontmatter, together with the skill's location. The initial catalog remains
   limited to name and description. Preserve optional metadata, including
@@ -99,16 +99,16 @@ and YAML compatibility checks are documented in
 
 ## Implementation verification
 
-- Local checks passed on PHP 8.5.8: Composer strict validation, 121 PHPUnit tests
-  with 354 assertions, PHPStan and the runnable example. Dependency resolution
+- Local checks passed on PHP 8.5.8: Composer strict validation, 101 PHPUnit tests
+  with 294 assertions, PHPStan and the runnable example. Dependency resolution
   targets PHP 8.1; the GitHub Actions matrix covers PHP 8.1 through 8.5.
 - Standards review found no documented-rule violations. Its two maintenance
   observations were addressed by centralizing source lookup and using the
   storage interface directly in the test double.
-- Spec review findings were fixed and rechecked: numeric filesystem identifiers,
-  explicit YAML scalar keys in block and flow mappings, and their anchor/alias
-  scope. Regression cases also protect literal strings and original document
-  content during activation.
+- Spec review fixed numeric filesystem identifiers, which remain covered.
+  The custom support for explicit YAML keys and their anchor/alias scope was subsequently removed at the user's
+  request in favor of Symfony YAML as-is. Tests protect literal strings and
+  original document content during activation.
 - Actual Neuron tool loops use a deterministic provider to verify the content
   supplied to the model. The host-tool scenario executes the activated script
   file with its neighboring asset; it does not claim live-model inference.
