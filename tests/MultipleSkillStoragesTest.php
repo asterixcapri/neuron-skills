@@ -81,13 +81,13 @@ class MultipleSkillStoragesTest extends TestCase
         $user = new FileSystemSkillStorage($this->root.'/user');
         $repository = new SkillRepository($project, $user);
         $this->assertSame([['name' => 'shared', 'description' => 'Project']], $repository->catalog());
-        $this->assertSame($projectDocument, $repository->readInstructions('shared'));
+        $this->assertSame($projectDocument, $repository->readDocument('shared'));
         $this->assertSame($this->root.'/project/folder', $repository->location('shared'));
         $this->assertSame('project guide for shared', $repository->readResource('shared', 'guide.md'));
         $messages = array_column($repository->diagnostics(), 'message');
         $this->assertContains('Skill "shared" from storage #2 candidate "folder" is shadowed by storage #1 candidate "folder".', $messages);
         $reversed = new SkillRepository($user, $project);
-        $this->assertSame($userDocument, $reversed->readInstructions('shared'));
+        $this->assertSame($userDocument, $reversed->readDocument('shared'));
         $this->assertSame($this->root.'/user/folder', $reversed->location('shared'));
         $this->assertSame('user guide for shared', $reversed->readResource('shared', 'guide.md'));
         $this->expectException(ToolException::class);

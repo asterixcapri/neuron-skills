@@ -47,7 +47,7 @@ class SkillRepository
     }
 
     /** @throws ToolException */
-    public function readInstructions(string $name): string
+    public function readDocument(string $name): string
     {
         $source = $this->source($name);
         $contents = $source['storage']->read($source['identifier'], self::MANIFEST);

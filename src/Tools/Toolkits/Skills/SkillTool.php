@@ -50,7 +50,7 @@ class SkillTool extends Tool implements HasRunKey
         }
 
         try {
-            $document = $this->repository->readInstructions($name);
+            $document = $this->repository->readDocument($name);
             $location = $this->repository->location($name);
             $context = $location === null
                 ? 'Skill location: unavailable. Read resources with skill_resource; host file access is not established.'
