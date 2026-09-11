@@ -31,7 +31,7 @@ class FileSystemSkillStorage implements SkillStorageInterface
 
     public function __construct(protected string $skillsRoot)
     {
-        $this->discoverSkills();
+        $this->discover();
     }
 
     public function list(): array
@@ -90,7 +90,7 @@ class FileSystemSkillStorage implements SkillStorageInterface
         return $path !== '' && !str_contains($path, "\0");
     }
 
-    protected function discoverSkills(): void
+    protected function discover(): void
     {
         if (!is_dir($this->skillsRoot)) {
             return;
