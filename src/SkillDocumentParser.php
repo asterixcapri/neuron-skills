@@ -19,16 +19,25 @@ final class SkillDocumentParser
     {
         $parts = $this->extractParts($contents);
         if ($parts === null) {
-            return ['document' => null, 'warnings' => ['SKILL.md must begin with YAML frontmatter delimited by ---.']];
+            return [
+                'document' => null,
+                'warnings' => ['SKILL.md must begin with YAML frontmatter delimited by ---.'],
+            ];
         }
 
         try {
             $metadata = $this->parseMetadata($parts['frontmatter']);
         } catch (ParseException $exception) {
-            return ['document' => null, 'warnings' => ['Unparseable YAML: '.$exception->getMessage()]];
+            return [
+                'document' => null,
+                'warnings' => ['Unparseable YAML: '.$exception->getMessage()],
+            ];
         }
         if (!$metadata instanceof stdClass) {
-            return ['document' => null, 'warnings' => ['Frontmatter must be a YAML mapping.']];
+            return [
+                'document' => null,
+                'warnings' => ['Frontmatter must be a YAML mapping.'],
+            ];
         }
 
         $warnings = [];
@@ -39,7 +48,10 @@ final class SkillDocumentParser
             }
         }
         if ($warnings !== []) {
-            return ['document' => null, 'warnings' => $warnings];
+            return [
+                'document' => null,
+                'warnings' => $warnings,
+            ];
         }
 
         $name = $metadata->name;
@@ -81,7 +93,12 @@ final class SkillDocumentParser
         }
 
         return [
-            'document' => ['name' => $name, 'description' => $description, 'body' => $parts['body'], 'frontmatter' => $metadata],
+            'document' => [
+                'name' => $name,
+                'description' => $description,
+                'body' => $parts['body'],
+                'frontmatter' => $metadata,
+            ],
             'warnings' => $warnings,
         ];
     }
@@ -93,7 +110,10 @@ final class SkillDocumentParser
             return null;
         }
 
-        return ['frontmatter' => $matches[1]."\n", 'body' => $matches[2]];
+        return [
+            'frontmatter' => $matches[1]."\n",
+            'body' => $matches[2],
+        ];
     }
 
     /** @throws ParseException */
