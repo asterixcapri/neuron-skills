@@ -17,6 +17,7 @@ use function preg_match;
 use function realpath;
 use function rtrim;
 use function sort;
+use function sprintf;
 use function str_contains;
 use function str_starts_with;
 
@@ -41,7 +42,7 @@ class FileSystemSkillStorage implements SkillStorageInterface
     public function location(string $skill): ?string
     {
         if (!array_key_exists($skill, $this->skillDirectories)) {
-            throw new ToolException("Skill \"{$skill}\" is not available.");
+            throw new ToolException(sprintf('Skill "%s" is not available.', $skill));
         }
 
         return $this->skillDirectories[$skill];
@@ -50,34 +51,34 @@ class FileSystemSkillStorage implements SkillStorageInterface
     public function read(string $skill, string $path): string
     {
         if (!array_key_exists($skill, $this->skillDirectories)) {
-            throw new ToolException("Skill \"{$skill}\" is not available.");
+            throw new ToolException(sprintf('Skill "%s" is not available.', $skill));
         }
         if (!$this->validPath($path)) {
-            throw new ToolException("Resource path \"{$path}\" is invalid.");
+            throw new ToolException(sprintf('Resource path "%s" is invalid.', $path));
         }
 
         $skillDirectory = $this->skillDirectories[$skill];
         $file = realpath($skillDirectory.'/'.$path);
         if ($file === false) {
-            throw new ToolException("Resource \"{$path}\" was not found in skill \"{$skill}\".");
+            throw new ToolException(sprintf('Resource "%s" was not found in skill "%s".', $path, $skill));
         }
         if ($file !== $skillDirectory && !$this->isWithin($file, $skillDirectory)) {
-            throw new ToolException("Resource \"{$path}\" escapes skill \"{$skill}\".");
+            throw new ToolException(sprintf('Resource "%s" escapes skill "%s".', $path, $skill));
         }
         if (!is_file($file)) {
-            throw new ToolException("Resource \"{$path}\" in skill \"{$skill}\" is not a file.");
+            throw new ToolException(sprintf('Resource "%s" in skill "%s" is not a file.', $path, $skill));
         }
         if (!is_readable($file)) {
-            throw new ToolException("Resource \"{$path}\" in skill \"{$skill}\" could not be read.");
+            throw new ToolException(sprintf('Resource "%s" in skill "%s" could not be read.', $path, $skill));
         }
 
         $contents = file_get_contents($file);
         if ($contents === false) {
-            throw new ToolException("Resource \"{$path}\" in skill \"{$skill}\" could not be read.");
+            throw new ToolException(sprintf('Resource "%s" in skill "%s" could not be read.', $path, $skill));
         }
         if (str_contains($contents, "\0") || preg_match('//u', $contents) !== 1) {
             throw new ToolException(
-                "Resource \"{$path}\" in skill \"{$skill}\" contains unsupported binary content.",
+                sprintf('Resource "%s" in skill "%s" contains unsupported binary content.', $path, $skill),
             );
         }
 
