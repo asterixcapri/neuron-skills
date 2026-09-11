@@ -47,6 +47,7 @@ class SkillDocumentParserTest extends TestCase
     public static function explicitScalarKeys(): array
     {
         return [
+            'flow quoted no space' => ['{? "name":"writing", ? "description":"Works"}'],
             'flow' => ['{? name: writing, ? description: Works}'],
             'anchored flow' => ["name: writing\ndescription: Works\nmetadata: &meta {? author: Alice}\nx-copy: *meta"],
             'nested flow' => ["name: writing\ndescription: Works\nmetadata: {? author: Alice, ? version: '1.0'}"],
@@ -88,6 +89,35 @@ class SkillDocumentParserTest extends TestCase
         $this->assertNotNull($metadata);
         $this->assertSame("? not a key\n: still content", $metadata->{'author: # key'});
         $this->assertSame('? quoted : content', $metadata->version);
+    }
+
+    public function test_explicit_key_anchors_remain_available_to_later_values(): void
+    {
+        $yaml = "? &field name\n: writing\ndescription: *field\nmetadata:\n  ? &author author\n  : Alice\n  label: *author";
+        $result = (new SkillDocumentParser())->parse("---\n".$yaml."\n---\nBody", 'writing');
+        $this->assertSame([], $result['warnings']);
+        $this->assertSame('name', $result['document']['description'] ?? null);
+        $this->assertSame(['author' => 'Alice', 'label' => 'author'], get_object_vars($result['document']['frontmatter']->metadata));
+        $this->assertSame(['name', 'description', 'metadata'], array_keys(get_object_vars($result['document']['frontmatter'])));
+    }
+
+    public function test_explicit_alias_keys_resolve_preceding_scalar_anchors(): void
+    {
+        $yaml = "field: &field name\n? *field\n: writing\ndescription: Works\nmetadata:\n  label: &author author\n  ? *author\n  : Alice";
+        $result = (new SkillDocumentParser())->parse("---\n".$yaml."\n---\nBody", 'writing');
+        $this->assertSame([], $result['warnings']);
+        $this->assertSame('writing', $result['document']['name'] ?? null);
+        $this->assertSame(['label' => 'author', 'author' => 'Alice'], get_object_vars($result['document']['frontmatter']->metadata));
+    }
+
+    public function test_flow_explicit_keys_preserve_anchor_and_alias_scope(): void
+    {
+        $yaml = '{? &field name: writing, description: *field, metadata: {field: &author author, ? *author: Alice}}';
+        $result = (new SkillDocumentParser())->parse("---\n".$yaml."\n---\nBody", 'writing');
+        $this->assertSame([], $result['warnings']);
+        $this->assertSame('writing', $result['document']['name'] ?? null);
+        $this->assertSame('name', $result['document']['description'] ?? null);
+        $this->assertSame(['field' => 'author', 'author' => 'Alice'], get_object_vars($result['document']['frontmatter']->metadata));
     }
 
     public function test_json_style_flow_strings_are_preserved(): void
@@ -213,6 +243,8 @@ class SkillDocumentParserTest extends TestCase
     public static function unusableDocuments(): array
     {
         return [
+            'duplicate aliased explicit key' => ["field: &field name\nname: writing\n? *field\n: duplicate\ndescription: Works"],
+            'undefined explicit alias' => ["? *missing\n: writing\ndescription: Works"],
             'duplicate explicit key' => ["? name\n: writing\n? name\n: duplicate\ndescription: Works"],
             'malformed explicit key' => ["? \"name\n: writing\ndescription: Works"],
             'syntax' => ["name: writing\ndescription: [broken"],
