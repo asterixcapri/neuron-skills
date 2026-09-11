@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Skills\Tools\Toolkits\Skills;
 
-use NeuronAI\Skills\Internal\SkillRepository;
+use NeuronAI\Skills\SkillRepository;
 use NeuronAI\Skills\Storage\SkillStorageInterface;
 use NeuronAI\Tools\Toolkits\AbstractToolkit;
 

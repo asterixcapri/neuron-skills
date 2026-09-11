@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Skills\Tools\Toolkits\Skills;
 
 use NeuronAI\Exceptions\ToolException;
-use NeuronAI\Skills\Internal\SkillRepository;
+use NeuronAI\Skills\SkillRepository;
 use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;

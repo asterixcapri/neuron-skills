@@ -6,7 +6,7 @@ namespace NeuronAI\Skills\Tests;
 
 use LogicException;
 use NeuronAI\Exceptions\ToolException;
-use NeuronAI\Skills\Internal\SkillRepository;
+use NeuronAI\Skills\SkillRepository;
 use NeuronAI\Skills\Storage\SkillStorageInterface;
 use PHPUnit\Framework\TestCase;
 
