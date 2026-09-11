@@ -64,11 +64,14 @@ the final frontmatter newline is necessary for literal block chomping semantics.
 [YAML explicit scalar mapping keys](https://yaml.org/spec/1.2.2/#822-block-mappings)
 are accepted in block and flow mappings, including nested metadata. Symfony 6.4
 rejects block explicit entries and can misinterpret flow explicit entries. The
-internal parser normalizes these indicators before delegating syntax and scalar
-interpretation to Symfony. Block normalization uses the parser's error location;
-flow normalization tracks collection boundaries, quotes, comments and scalar
-contents. Tests include quoted, tagged, multiline and block scalar keys, and
-verify that scalar contents and the original activated document remain intact.
+internal parser represents explicit key/value nodes as paired internal entries
+before delegating syntax and scalar interpretation to Symfony, then rebuilds the
+mappings and checks duplicate keys. Keeping the key nodes in the same document
+preserves anchors and aliases across keys and values. Block normalization uses
+the parser's error location; flow normalization tracks collection boundaries,
+quotes, comments and scalar contents. Tests include quoted, tagged, multiline,
+block scalar and aliased keys, and verify that scalar contents and the original
+activated document remain intact.
 
 Document streams and directives are outside a single delimited frontmatter
 mapping. Compact block sequences cannot represent the required string fields or
