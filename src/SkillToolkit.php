@@ -26,6 +26,12 @@ class SkillToolkit extends AbstractToolkit
         $this->catalog = $this->repository->catalog();
     }
 
+    /** @return list<array{skill: string, message: string}> */
+    public function diagnostics(): array
+    {
+        return $this->repository->diagnostics();
+    }
+
     public function guidelines(): ?string
     {
         if ($this->catalog === []) {
