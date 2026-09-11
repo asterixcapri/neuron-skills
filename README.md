@@ -75,6 +75,33 @@ The agent can load `caveman` and answer in its terse style. For example:
 
 To add your own guidance, create a [custom skill](#custom-skills) in the same folder.
 
+## Multiple Skill Directories
+
+Pass storage instances in precedence order. For project-over-user precedence,
+put the project's directory first (set `$userSkillsDirectory` to your user's
+installed skills directory):
+
+```php
+$toolkit = new SkillToolkit(
+    new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
+    new FileSystemSkillStorage($userSkillsDirectory),
+);
+$agent->addTool($toolkit);
+$diagnostics = $toolkit->diagnostics(); // Entries contain skill and message.
+```
+
+The first usable candidate for a declared name wins: storage order first, then
+alphabetical identifiers within each storage. Invalid or unreadable documents
+allow a later fallback; usable documents with warnings retain precedence.
+Shadowing diagnostics identify both storage numbers (starting at 1) and candidate
+identifiers. Nothing is printed automatically.
+
+The combined catalog is a session snapshot. Activation, location and resource
+reads all use the winning source, even when folder names match across roots or
+differ from declared skill names. A missing resource returns an error; it is never
+retrieved from a shadowed skill. Documents and resources are read on request;
+only documents are read during initial discovery.
+
 ## Available Tools
 
 The toolkit registers two tools that the agent can call:
@@ -159,8 +186,8 @@ propagate as exceptions.
 
 ## Runnable Example
 
-The [included example](examples/basic.php) activates a writing skill, reads its
-guide and uses an explicitly registered host tool to run its script with a
+The [included example](examples/basic.php) combines project and user directories,
+activates writing and analysis skills, reads their guides and uses an explicitly registered host tool to run its script with a
 neighboring asset through a Neuron agent. It uses a fake AI provider, so no API key is needed.
 Run it from this library's checkout:
 

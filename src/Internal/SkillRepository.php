@@ -21,7 +21,7 @@ class SkillRepository
     /** @var array<int, array{name: string, description: string}> */
     protected array $catalog = [];
 
-    /** @var array<string, string> */
+    /** @var array<string, array{storage: SkillStorageInterface, identifier: string, ordinal: int}> */
     protected array $availableSkills = [];
 
     /** @var list<array{skill: string, message: string}> */
@@ -33,9 +33,11 @@ class SkillRepository
         return $this->diagnostics;
     }
 
-    public function __construct(protected SkillStorageInterface $storage)
+    public function __construct(SkillStorageInterface $storage, SkillStorageInterface ...$fallbackStorages)
     {
-        $this->buildCatalog();
+        foreach ([$storage, ...$fallbackStorages] as $index => $source) {
+            $this->buildCatalog($source, $index + 1);
+        }
     }
 
     /** @return array<int, array{name: string, description: string}> */
@@ -51,9 +53,10 @@ class SkillRepository
             throw new ToolException(sprintf('Skill "%s" is not available.', $name));
         }
 
-        $contents = $this->storage->read($this->availableSkills[$name], self::MANIFEST);
+        $source = $this->availableSkills[$name];
+        $contents = $source['storage']->read($source['identifier'], self::MANIFEST);
 
-        $document = (new SkillDocumentParser())->parse($contents, $this->availableSkills[$name])['document'];
+        $document = (new SkillDocumentParser())->parse($contents, $source['identifier'])['document'];
         if ($document === null) {
             throw new ToolException(sprintf('Skill "%s" has invalid frontmatter.', $name));
         }
@@ -68,7 +71,8 @@ class SkillRepository
             throw new ToolException(sprintf('Skill "%s" is not available.', $name));
         }
 
-        return $this->storage->location($this->availableSkills[$name]);
+        $source = $this->availableSkills[$name];
+        return $source['storage']->location($source['identifier']);
     }
 
     /** @throws ToolException */
@@ -81,17 +85,18 @@ class SkillRepository
             throw new ToolException('Resource path "" is invalid.');
         }
 
-        return $this->storage->read($this->availableSkills[$name], $path);
+        $source = $this->availableSkills[$name];
+        return $source['storage']->read($source['identifier'], $path);
     }
 
-    protected function buildCatalog(): void
+    protected function buildCatalog(SkillStorageInterface $storage, int $ordinal): void
     {
-        $skills = $this->storage->skills();
+        $skills = $storage->skills();
         sort($skills, SORT_STRING);
 
         foreach ($skills as $skill) {
             try {
-                $contents = $this->storage->read($skill, self::MANIFEST);
+                $contents = $storage->read($skill, self::MANIFEST);
             } catch (ToolException $exception) {
                 $this->diagnostics[] = ['skill' => $skill, 'message' => $exception->getMessage()];
                 continue;
@@ -107,11 +112,19 @@ class SkillRepository
             }
             $name = $document['name'];
             if (array_key_exists($name, $this->availableSkills)) {
-                $this->diagnostics[] = ['skill' => $skill, 'message' => sprintf('Skill "%s" is shadowed by "%s".', $name, $this->availableSkills[$name])];
+                $winner = $this->availableSkills[$name];
+                $this->diagnostics[] = ['skill' => $skill, 'message' => sprintf(
+                    'Skill "%s" from storage #%d candidate "%s" is shadowed by storage #%d candidate "%s".',
+                    $name,
+                    $ordinal,
+                    $skill,
+                    $winner['ordinal'],
+                    $winner['identifier'],
+                )];
                 continue;
             }
             $this->catalog[] = ['name' => $name, 'description' => $document['description']];
-            $this->availableSkills[$name] = $skill;
+            $this->availableSkills[$name] = ['storage' => $storage, 'identifier' => $skill, 'ordinal' => $ordinal];
         }
     }
 }

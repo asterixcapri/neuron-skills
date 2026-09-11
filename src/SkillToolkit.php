@@ -20,9 +20,9 @@ class SkillToolkit extends AbstractToolkit
 
     protected SkillRepository $repository;
 
-    public function __construct(SkillStorageInterface $storage)
+    public function __construct(SkillStorageInterface $storage, SkillStorageInterface ...$fallbackStorages)
     {
-        $this->repository = new SkillRepository($storage);
+        $this->repository = new SkillRepository($storage, ...$fallbackStorages);
         $this->catalog = $this->repository->catalog();
     }
 
