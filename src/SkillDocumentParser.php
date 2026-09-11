@@ -56,9 +56,7 @@ final class SkillDocumentParser
 
         $name = $metadata->name;
         $description = $metadata->description;
-        $normalized = Normalizer::normalize($name, Normalizer::FORM_KC);
-        if ($normalized === false || mb_strtolower($normalized, 'UTF-8') !== $normalized
-            || preg_match('/\A[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*\z/u', $normalized) !== 1) {
+        if (!$this->hasValidNameFormat($name)) {
             $warnings[] = 'name must use lowercase Unicode letters or numbers and single separating hyphens.';
         }
         if (mb_strlen($name, 'UTF-8') > 64) {
@@ -123,5 +121,14 @@ final class SkillDocumentParser
             $yaml,
             Yaml::PARSE_OBJECT_FOR_MAP | Yaml::PARSE_EXCEPTION_ON_INVALID_TYPE,
         );
+    }
+
+    private function hasValidNameFormat(string $name): bool
+    {
+        $normalized = Normalizer::normalize($name, Normalizer::FORM_KC);
+
+        return $normalized !== false
+            && mb_strtolower($normalized, 'UTF-8') === $normalized
+            && preg_match('/\A[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*\z/u', $normalized) === 1;
     }
 }
