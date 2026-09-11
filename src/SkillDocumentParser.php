@@ -17,7 +17,7 @@ final class SkillDocumentParser
      */
     public function parse(string $contents, string $skill): array
     {
-        $parts = $this->splitDocument($contents);
+        $parts = $this->extractParts($contents);
         if ($parts === null) {
             return ['document' => null, 'warnings' => ['SKILL.md must begin with YAML frontmatter delimited by ---.']];
         }
@@ -90,7 +90,7 @@ final class SkillDocumentParser
     }
 
     /** @return array{frontmatter: string, body: string}|null */
-    private function splitDocument(string $contents): ?array
+    private function extractParts(string $contents): ?array
     {
         if (preg_match('/\A(?:\xEF\xBB\xBF)?---[^\S\r\n]*\r?\n(.*?)\r?\n---[^\S\r\n]*(?:\r?\n|\z)(.*)\z/s', $contents, $matches) !== 1) {
             return null;
