@@ -17,11 +17,8 @@ class SkillRepository
 {
     protected const MANIFEST = 'SKILL.md';
 
-    /** @var array<int, array{name: string, description: string}> */
-    protected array $catalog = [];
-
-    /** @var array<string, array{storage: SkillStorageInterface, identifier: string, ordinal: int}> */
-    protected array $availableSkills = [];
+    /** @var array<string, array{description: string, storage: SkillStorageInterface, identifier: string, ordinal: int}> */
+    protected array $skills = [];
 
     /** @var list<array{skill: string, message: string}> */
     protected array $diagnostics = [];
@@ -42,15 +39,20 @@ class SkillRepository
     /** @return array<int, array{name: string, description: string}> */
     public function catalog(): array
     {
-        return $this->catalog;
+        $catalog = [];
+        foreach ($this->skills as $name => $skill) {
+            $catalog[] = ['name' => (string) $name, 'description' => $skill['description']];
+        }
+
+        return $catalog;
     }
 
     /** @throws ToolException */
     public function readInstructions(string $name): string
     {
-        $source = $this->source($name);
-        $contents = $source['storage']->read($source['identifier'], self::MANIFEST);
-        $document = (new SkillDocumentParser())->parse($contents, $source['identifier'])['document'];
+        ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
+        $contents = $storage->read($identifier, self::MANIFEST);
+        $document = (new SkillDocumentParser())->parse($contents, $identifier)['document'];
 
         if ($document === null) {
             throw new ToolException(sprintf('Skill "%s" has invalid frontmatter.', $name));
@@ -62,10 +64,10 @@ class SkillRepository
     /** @throws ToolException */
     public function readDocument(string $name): string
     {
-        $source = $this->source($name);
-        $contents = $source['storage']->read($source['identifier'], self::MANIFEST);
+        ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
+        $contents = $storage->read($identifier, self::MANIFEST);
 
-        $document = (new SkillDocumentParser())->parse($contents, $source['identifier'])['document'];
+        $document = (new SkillDocumentParser())->parse($contents, $identifier)['document'];
         if ($document === null) {
             throw new ToolException(sprintf('Skill "%s" has invalid frontmatter.', $name));
         }
@@ -76,29 +78,29 @@ class SkillRepository
     /** @throws ToolException */
     public function location(string $name): ?string
     {
-        $source = $this->source($name);
-        return $source['storage']->location($source['identifier']);
+        ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
+        return $storage->location($identifier);
     }
 
     /** @throws ToolException */
     public function readResource(string $name, string $path): string
     {
-        $source = $this->source($name);
+        ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
         if ($path === '') {
             throw new ToolException('Resource path "" is invalid.');
         }
 
-        return $source['storage']->read($source['identifier'], $path);
+        return $storage->read($identifier, $path);
     }
 
-    /** @return array{storage: SkillStorageInterface, identifier: string, ordinal: int} */
-    private function source(string $name): array
+    /** @return array{description: string, storage: SkillStorageInterface, identifier: string, ordinal: int} */
+    private function getSkill(string $name): array
     {
-        if (!array_key_exists($name, $this->availableSkills)) {
+        if (!array_key_exists($name, $this->skills)) {
             throw new ToolException(sprintf('Skill "%s" is not available.', $name));
         }
 
-        return $this->availableSkills[$name];
+        return $this->skills[$name];
     }
 
     protected function buildCatalog(SkillStorageInterface $storage, int $ordinal): void
@@ -123,8 +125,8 @@ class SkillRepository
                 continue;
             }
             $name = $document['name'];
-            if (array_key_exists($name, $this->availableSkills)) {
-                $winner = $this->availableSkills[$name];
+            if (array_key_exists($name, $this->skills)) {
+                $winner = $this->skills[$name];
                 $this->diagnostics[] = ['skill' => $skill, 'message' => sprintf(
                     'Skill "%s" from storage #%d candidate "%s" is shadowed by storage #%d candidate "%s".',
                     $name,
@@ -135,8 +137,12 @@ class SkillRepository
                 )];
                 continue;
             }
-            $this->catalog[] = ['name' => $name, 'description' => $document['description']];
-            $this->availableSkills[$name] = ['storage' => $storage, 'identifier' => $skill, 'ordinal' => $ordinal];
+            $this->skills[$name] = [
+                'description' => $document['description'],
+                'storage' => $storage,
+                'identifier' => $skill,
+                'ordinal' => $ordinal,
+            ];
         }
     }
 }
