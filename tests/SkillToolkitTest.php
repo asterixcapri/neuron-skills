@@ -114,8 +114,8 @@ class SkillToolkitTest extends TestCase
         $systemPrompt = $provider->getRecorded()[0]->systemPrompt ?? '';
         $this->assertStringContainsString('writing: Write clear prose', $systemPrompt);
         $this->assertStringContainsString('skill', $systemPrompt);
-        $this->assertStringContainsString('Read only resources needed for the current task', $systemPrompt);
-        $this->assertStringContainsString('Resolve relative references against the skill location', $systemPrompt);
+        $this->assertStringContainsString('Read supporting text only when needed', $systemPrompt);
+        $this->assertStringContainsString('resolving paths from the skill location', $systemPrompt);
         $this->assertStringNotContainsString($this->skillsRoot, $systemPrompt);
         $this->assertStringNotContainsString('Prefer direct sentences.', $systemPrompt);
         $this->assertStringNotContainsString('Use concrete words.', $systemPrompt);
@@ -144,6 +144,16 @@ class SkillToolkitTest extends TestCase
         $this->assertStringNotContainsString('storage identifier', $prompt);
         $this->assertStringNotContainsString('MIT', $prompt);
         $provider->assertSent(fn (RequestRecord $record): bool => $this->hasToolResult($record, 'Skill location: '.$this->skillsRoot."/writing\n\n".file_get_contents($this->skillsRoot.'/writing/SKILL.md')));
+    }
+
+    public function test_multiline_description_stays_on_one_catalog_line(): void
+    {
+        file_put_contents($this->skillsRoot.'/writing/SKILL.md', "---\nname: writing\ndescription: |-\n  First  line\n  Second line\n---\nBody");
+        $toolkit = new SkillToolkit(new SkillRepository(new FileSystemSkillStorage($this->skillsRoot)));
+
+        $guidelines = $toolkit->guidelines() ?? '';
+        $this->assertStringContainsString('writing: First line Second line', $guidelines);
+        $this->assertStringNotContainsString("\nSecond line", $guidelines);
     }
 
     public function test_unusable_catalog_produces_diagnostics_but_no_tools_or_guidelines(): void
