@@ -22,7 +22,9 @@ You can install existing skills from [skills.sh](https://skills.sh) or write you
 
 ## Installation
 
-Requires PHP 8.1+ and Neuron AI ^3.16.13.
+Requires PHP 8.1+ and Neuron AI ^3.0.
+The YAML dependency accepts Symfony 6.4, 7.x, or 8.x; Composer selects a version
+compatible with the application's PHP version and other dependencies.
 
 For a local checkout, register the library with Composer in your application,
 then require the package. Adjust the path to match its location:
@@ -51,13 +53,15 @@ application's root, register that folder on your configured Neuron AI agent:
 
 ```php
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Skills\SkillRepository;
 use NeuronAI\Skills\Tools\SkillToolkit;
 use NeuronAI\Skills\Storage\FileSystemSkillStorage;
 
 $storage = new FileSystemSkillStorage(__DIR__.'/.agents/skills');
+$skills = new SkillRepository($storage);
 
 // $agent already has your AI provider configured.
-$agent->addTool(new SkillToolkit($storage));
+$agent->addTool(new SkillToolkit($skills));
 
 $response = $agent->chat(
     new UserMessage(
@@ -82,12 +86,13 @@ put the project's directory first (set `$userSkillsDirectory` to your user's
 installed skills directory):
 
 ```php
-$toolkit = new SkillToolkit(
+$skills = new SkillRepository(
     new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
     new FileSystemSkillStorage($userSkillsDirectory),
 );
+$toolkit = new SkillToolkit($skills);
 $agent->addTool($toolkit);
-$diagnostics = $toolkit->diagnostics(); // Entries contain skill and message.
+$diagnostics = $skills->diagnostics(); // Entries contain skill and message.
 ```
 
 The first usable candidate for a declared name wins: storage order first, then
@@ -176,7 +181,7 @@ For the format supported by this library:
   multiline blocks are supported. Names support Unicode letters and numbers.
 - Give the skill a description of 1–1024 characters that explains when to use it.
 - Place the Markdown instructions after the closing `---`.
-- YAML syntax follows Symfony YAML 6.4 as provided. Use ordinary `key: value`
+- YAML syntax follows the installed Symfony YAML version. Use ordinary `key: value`
   mappings; explicit mapping keys (`? key`) are not supported. There is no
   custom YAML compatibility layer.
 
@@ -193,22 +198,37 @@ location exists; remote locations require matching host tools and provisioning.
 ## Error Handling
 
 Unusable skill documents are skipped; recoverable validation issues produce
-warnings. Inspect `$toolkit->diagnostics()` for `skill` and `message` entries.
+warnings. Inspect `$skills->diagnostics()` for `skill` and `message` entries.
 Nothing is printed or sent to the model automatically.
 
 Expected read failures become messages the agent can read. Unexpected exceptions
-propagate. See the [validation policy](docs/validation.md) for the detailed rules.
+propagate. See the [validation policy](https://github.com/asterixcapri/neuron-skills/blob/main/docs/validation.md) for the detailed rules.
 
-## Runnable Example
+## Runnable Examples
 
-The [included example](examples/basic.php) combines project and user directories,
-activates writing and analysis skills, reads their guides and uses an explicitly registered host tool to run its script with a
-neighboring asset through a Neuron agent. It uses a fake AI provider, so no API key is needed.
-Run it from this library's checkout:
+The repository examples use bundled skills and make real OpenAI requests. Copy the
+environment file and add your key before running them:
+
+```sh
+cp examples/.env.example examples/.env
+# Edit examples/.env
+```
+
+- [`basic.php`](https://github.com/asterixcapri/neuron-skills/blob/main/examples/basic.php) loads project and user skills, mounts the
+  toolkit on a real agent and asks it to use the writing skill. It reads
+  `OPENAI_API_KEY` and optional `OPENAI_MODEL` from the environment.
+- [`agent-loop.php`](https://github.com/asterixcapri/neuron-skills/blob/main/examples/agent-loop.php) activates a skill and lazily reads
+  one of its references through a real agent tool loop.
+- [`host-script.php`](https://github.com/asterixcapri/neuron-skills/blob/main/examples/host-script.php) executes a bundled skill script
+  through Neuron's `BashTool`, preserving access to neighboring assets.
+
+Run them from this library's checkout:
 
 ```sh
 composer install
 php examples/basic.php
+php examples/agent-loop.php
+php examples/host-script.php
 ```
 
 ## License

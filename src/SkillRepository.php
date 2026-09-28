@@ -13,7 +13,6 @@ use function sprintf;
 
 use const SORT_STRING;
 
-/** @internal */
 class SkillRepository
 {
     protected const MANIFEST = 'SKILL.md';
@@ -44,6 +43,20 @@ class SkillRepository
     public function catalog(): array
     {
         return $this->catalog;
+    }
+
+    /** @throws ToolException */
+    public function readInstructions(string $name): string
+    {
+        $source = $this->source($name);
+        $contents = $source['storage']->read($source['identifier'], self::MANIFEST);
+        $document = (new SkillDocumentParser())->parse($contents, $source['identifier'])['document'];
+
+        if ($document === null) {
+            throw new ToolException(sprintf('Skill "%s" has invalid frontmatter.', $name));
+        }
+
+        return trim($document['body']);
     }
 
     /** @throws ToolException */

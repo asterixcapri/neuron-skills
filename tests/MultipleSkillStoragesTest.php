@@ -62,7 +62,10 @@ class MultipleSkillStoragesTest extends TestCase
         $project = new FileSystemSkillStorage($this->root.'/project');
         $user = new FileSystemSkillStorage($this->root.'/user');
         $this->assertSame(['123'], $project->list());
-        foreach ([new SkillToolkit($project), new SkillToolkit($project, $user)] as $toolkit) {
+        foreach ([
+            new SkillToolkit(new SkillRepository($project)),
+            new SkillToolkit(new SkillRepository($project, $user)),
+        ] as $toolkit) {
             $this->assertStringContainsString('Project', $toolkit->guidelines() ?? '');
             [$activation, $resource] = $toolkit->tools();
             $activation->setInputs(['name' => '123'])->execute();
@@ -107,7 +110,8 @@ class MultipleSkillStoragesTest extends TestCase
             'invalid' => "---\nname: invalid\ndescription: Recovered\n---\n",
             'shared' => "---\nname: shared\ndescription: Fallback\n---\n",
         ]);
-        $toolkit = new SkillToolkit($primary, $fallback);
+        $repository = new SkillRepository($primary, $fallback);
+        $toolkit = new SkillToolkit($repository);
         $this->assertSame(['a-first/SKILL.md', 'invalid/SKILL.md', 'unreadable/SKILL.md', 'z-last/SKILL.md'], $primary->reads);
         $this->assertSame(['invalid/SKILL.md', 'shared/SKILL.md', 'unreadable/SKILL.md'], $fallback->reads);
         $guidelines = $toolkit->guidelines() ?? '';
@@ -125,12 +129,15 @@ class MultipleSkillStoragesTest extends TestCase
         $activation->execute();
         $this->assertStringContainsString('New body', $activation->getResult());
         $this->assertSame($guidelines, $toolkit->guidelines());
-        $this->assertNotEmpty($toolkit->diagnostics());
+        $this->assertNotEmpty($repository->diagnostics());
     }
 
     public function test_multiple_empty_or_unusable_sources_provide_no_tools_or_guidelines(): void
     {
-        $toolkit = new SkillToolkit(new TrackedSkillStorage([]), new TrackedSkillStorage(['broken' => 'invalid']));
+        $toolkit = new SkillToolkit(new SkillRepository(
+            new TrackedSkillStorage([]),
+            new TrackedSkillStorage(['broken' => 'invalid']),
+        ));
         $this->assertSame([], $toolkit->tools());
         $this->assertNull($toolkit->guidelines());
     }
@@ -139,10 +146,10 @@ class MultipleSkillStoragesTest extends TestCase
     {
         $projectDocument = $this->skill('project', 'same-folder', 'writing', 'Write prose');
         $userDocument = $this->skill('user', 'same-folder', 'analysis', 'Analyse evidence');
-        $toolkit = new SkillToolkit(
+        $toolkit = new SkillToolkit(new SkillRepository(
             new FileSystemSkillStorage($this->root.'/project'),
             new FileSystemSkillStorage($this->root.'/user'),
-        );
+        ));
         [$skill, $resource] = $toolkit->tools();
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [

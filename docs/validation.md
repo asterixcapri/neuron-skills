@@ -1,6 +1,6 @@
 # Skill document validation
 
-The internal parser uses Symfony YAML 6.4 and separates loading eligibility from
+The internal parser uses the installed Symfony YAML version and separates loading eligibility from
 format warnings. The toolkit snapshots discovery when constructed. Resources and
 instruction files are read lazily; recreate the toolkit to refresh the catalog.
 
@@ -61,7 +61,7 @@ quoted multiline strings, escapes, comments, literal and folded blocks, plain
 continuations, flow mappings, explicit `!!str`, aliases and empty maps. Retaining
 the final frontmatter newline is necessary for literal block chomping semantics.
 
-YAML syntax support is exactly that of Symfony YAML 6.4 with the configured
+YAML syntax support is exactly that of the installed Symfony YAML version with the configured
 safe parsing flags. The library does not rewrite syntax or add compatibility
 handling. In particular, explicit mapping keys (`? key` / `: value`, or flow
 variants) are not supported reliably by Symfony; use ordinary `key: value`

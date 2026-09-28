@@ -8,6 +8,7 @@ use NeuronAI\Providers\OpenAI\OpenAI;
 use NeuronAI\Skills\SkillRepository;
 use NeuronAI\Skills\Storage\FileSystemSkillStorage;
 use NeuronAI\Skills\Tools\SkillToolkit;
+use NeuronAI\Tools\Toolkits\FileSystem\BashTool;
 use Symfony\Component\Dotenv\Dotenv;
 
 require dirname(__DIR__).'/vendor/autoload.php';
@@ -26,17 +27,16 @@ if (!is_string($key) || $key === '') {
 $model = $_ENV['OPENAI_MODEL'] ?? getenv('OPENAI_MODEL');
 $model = is_string($model) && $model !== '' ? $model : 'gpt-4o-mini';
 
-$skills = new SkillRepository(
-    new FileSystemSkillStorage(__DIR__.'/skills'),
-    new FileSystemSkillStorage(__DIR__.'/user-skills'),
-);
+$skills = new SkillRepository(new FileSystemSkillStorage(__DIR__.'/skills'));
 $toolkit = new SkillToolkit($skills);
+$bash = BashTool::make();
 
 $agent = Agent::make()
     ->setAiProvider(new OpenAI(key: $key, model: $model))
-    ->setInstructions('Use the available skills when relevant.')
-    ->addTool($toolkit);
+    ->setInstructions('Use the available skills and host tools when relevant.')
+    ->addTool($toolkit)
+    ->addTool($bash);
 
 echo $agent->chat(new UserMessage(
-    'Use the writing skill to rewrite this sentence: Due to the fact that it was raining, we decided to stay inside.',
+    'Use the writing skill to check its bundled sample. Run the skill script with the available host tool and report its output.',
 ))->getMessage()->getContent().PHP_EOL;

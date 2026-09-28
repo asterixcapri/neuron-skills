@@ -23,3 +23,25 @@ jobs:
       - run: composer validate --strict
       - run: composer install --no-interaction --prefer-dist
       - run: composer check
+
+  yaml-compatibility:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.2'
+            yaml: '7.4.*'
+          - php: '8.4'
+            yaml: '8.0.*'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, mbstring, xml, xmlwriter
+          tools: composer:v2
+          coverage: none
+      - run: composer config platform.php ${{ matrix.php }}.0
+      - run: composer update --with "symfony/yaml:${{ matrix.yaml }}" --no-interaction --prefer-dist
+      - run: composer check

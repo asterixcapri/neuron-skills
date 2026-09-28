@@ -2,6 +2,7 @@
 /composer.lock
 /.phpunit.cache/
 /.phpstan.cache/
+/examples/.env
 .agents
 .claude
 .codex

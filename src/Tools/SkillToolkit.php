@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Skills\Tools;
 
 use NeuronAI\Skills\SkillRepository;
-use NeuronAI\Skills\Storage\SkillStorageInterface;
 use NeuronAI\Tools\Toolkits\AbstractToolkit;
 
 use function array_map;
@@ -13,17 +12,8 @@ use function implode;
 
 class SkillToolkit extends AbstractToolkit
 {
-    protected SkillRepository $repository;
-
-    public function __construct(SkillStorageInterface $storage, SkillStorageInterface ...$fallbackStorages)
+    public function __construct(protected SkillRepository $repository)
     {
-        $this->repository = new SkillRepository($storage, ...$fallbackStorages);
-    }
-
-    /** @return list<array{skill: string, message: string}> */
-    public function diagnostics(): array
-    {
-        return $this->repository->diagnostics();
     }
 
     public function guidelines(): ?string

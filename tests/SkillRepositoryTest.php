@@ -17,6 +17,21 @@ use function array_keys;
 
 class SkillRepositoryTest extends TestCase
 {
+    public function test_reads_normalized_instructions_and_location(): void
+    {
+        $repository = new SkillRepository(new InMemorySkillStorage([
+            'writing' => [
+                'SKILL.md' => "---\nname: writing\ndescription: Write clear prose\n---\n# Writing instructions\n\nPrefer direct sentences.\n",
+            ],
+        ]));
+
+        $this->assertSame(
+            "# Writing instructions\n\nPrefer direct sentences.",
+            $repository->readInstructions('writing'),
+        );
+        $this->assertNull($repository->location('writing'));
+    }
+
     public function test_builds_a_deterministic_catalog_and_preserves_complete_instructions(): void
     {
         $storage = new InMemorySkillStorage([

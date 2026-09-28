@@ -38,5 +38,5 @@ $agent = Agent::make()
     ->addTool($toolkit);
 
 echo $agent->chat(new UserMessage(
-    'Use the writing skill to rewrite this sentence: Due to the fact that it was raining, we decided to stay inside.',
+    'Use the writing skill and its style reference to rewrite this sentence: The implementation made an improvement to the clarity of the error message.',
 ))->getMessage()->getContent().PHP_EOL;
