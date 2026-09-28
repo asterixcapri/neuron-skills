@@ -39,7 +39,7 @@ identifier order for each declared name. Unusable candidates reserve no names.
 A shadowed candidate produces a diagnostic. Reads always use the selected
 storage identifier even when it differs from the declared name.
 
-`SkillToolkit::diagnostics()` returns a list of `skill` (storage identifier) and
+`SkillRepository::diagnostics()` returns a list of `skill` (storage identifier) and
 `message` entries, including exclusion reasons and tolerated warnings. It returns
 an empty list when discovery finds no problems. These messages are never printed
 or included in the agent prompt automatically. No logger or callback is needed.

@@ -43,7 +43,7 @@ final class SkillDocumentParser
         $warnings = [];
         foreach (['name', 'description'] as $field) {
             $value = $metadata->{$field} ?? null;
-            if (!is_string($value) || preg_match('//u', $value) !== 1 || preg_match('/\S/u', $value) !== 1 || str_contains($value, "\0")) {
+            if (!is_string($value) || str_contains($value, "\0") || preg_match('/\S/u', $value) !== 1) {
                 $warnings[] = $field.' must be a non-empty UTF-8 string.';
             }
         }
