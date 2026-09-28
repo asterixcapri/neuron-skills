@@ -13,10 +13,10 @@ use function file_get_contents;
 use function is_dir;
 use function is_file;
 use function is_readable;
+use function ksort;
 use function preg_match;
 use function realpath;
 use function rtrim;
-use function sort;
 use function sprintf;
 use function str_contains;
 use function str_starts_with;
@@ -107,13 +107,7 @@ class FileSystemSkillStorage implements SkillStorageInterface
             }
         }
 
-        $skills = array_keys($this->skillDirectories);
-        sort($skills, SORT_STRING);
-        $directories = $this->skillDirectories;
-        $this->skillDirectories = [];
-        foreach ($skills as $skill) {
-            $this->skillDirectories[$skill] = $directories[$skill];
-        }
+        ksort($this->skillDirectories, SORT_STRING);
     }
 
     protected function isWithin(string $path, string $directory): bool
