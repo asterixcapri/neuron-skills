@@ -22,7 +22,7 @@ You can install existing skills from [skills.sh](https://skills.sh) or write you
 
 ## Installation
 
-Requires PHP 8.1+ and Neuron AI ^3.0.
+Requires PHP 8.1+ and Neuron AI ^3.4.6.
 The YAML dependency accepts Symfony 6.4, 7.x, or 8.x; Composer selects a version
 compatible with the application's PHP version and other dependencies.
 
