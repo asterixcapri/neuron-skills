@@ -26,7 +26,10 @@ if (!is_string($key) || $key === '') {
     exit(1);
 }
 
-$skills = new SkillRepository(new FileSystemSkillStorage(__DIR__.'/skills'));
+$skills = new SkillRepository(
+    new FileSystemSkillStorage(__DIR__.'/skills'),
+    new FileSystemSkillStorage(__DIR__.'/.agents/skills')
+);
 
 $agent = Agent::make()
     ->setAiProvider(new OpenAI(key: $key, model: 'gpt-5.4-nano'))
