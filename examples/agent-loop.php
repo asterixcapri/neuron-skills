@@ -3,11 +3,14 @@
 declare(strict_types=1);
 
 use NeuronAI\Agent\Agent;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\OpenAI\OpenAI;
 use NeuronAI\Skills\SkillRepository;
 use NeuronAI\Skills\Storage\FileSystemSkillStorage;
 use NeuronAI\Skills\Tools\SkillToolkit;
+use NeuronAI\Tools\Toolkits\FileSystem\BashTool;
 use Symfony\Component\Dotenv\Dotenv;
 
 require dirname(__DIR__).'/vendor/autoload.php';
@@ -23,20 +26,43 @@ if (!is_string($key) || $key === '') {
     exit(1);
 }
 
-$model = $_ENV['OPENAI_MODEL'] ?? getenv('OPENAI_MODEL');
-$model = is_string($model) && $model !== '' ? $model : 'gpt-4o-mini';
-
-$skills = new SkillRepository(
-    new FileSystemSkillStorage(__DIR__.'/skills'),
-    new FileSystemSkillStorage(__DIR__.'/user-skills'),
-);
-$toolkit = new SkillToolkit($skills);
+$skills = new SkillRepository(new FileSystemSkillStorage(__DIR__.'/skills'));
 
 $agent = Agent::make()
-    ->setAiProvider(new OpenAI(key: $key, model: $model))
-    ->setInstructions('Use the available skills when relevant.')
-    ->addTool($toolkit);
+    ->setAiProvider(new OpenAI(key: $key, model: 'gpt-5.4-nano'))
+    ->addTool(new SkillToolkit($skills))
+    ->addTool(new BashTool());
 
-echo $agent->chat(new UserMessage(
-    'Use the writing skill and its style reference to rewrite this sentence: The implementation made an improvement to the clarity of the error message.',
-))->getMessage()->getContent().PHP_EOL;
+echo "Type a message, or 'exit' to quit.\n";
+
+while (true) {
+    echo "\nYou> ";
+    $input = fgets(STDIN);
+    if ($input === false) {
+        break;
+    }
+
+    $input = trim($input);
+    if ($input === '') {
+        continue;
+    }
+    if (in_array(strtolower($input), ['exit', 'quit'], true)) {
+        break;
+    }
+
+    echo 'Agent> ';
+    foreach ($agent->stream(new UserMessage($input))->events() as $event) {
+        if ($event instanceof ToolCallChunk) {
+            echo sprintf(
+                "\n[tool: %s %s]\n",
+                $event->tool->getName(),
+                json_encode($event->tool->getInputs(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            );
+        } elseif ($event instanceof TextChunk) {
+            echo $event->content;
+            flush();
+        }
+    }
+
+    echo PHP_EOL;
+}

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Skills\Tests;
 
 use LogicException;
-use NeuronAI\Exceptions\ToolException;
+use RuntimeException;
 use NeuronAI\Skills\SkillRepository;
 use NeuronAI\Skills\Storage\SkillStorageInterface;
 use PHPUnit\Framework\TestCase;
@@ -32,6 +32,16 @@ class SkillRepositoryTest extends TestCase
         $this->assertNull($repository->location('writing'));
     }
 
+    public function test_location_rejects_an_unknown_skill(): void
+    {
+        $repository = new SkillRepository(new InMemorySkillStorage([]));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Skill "missing" is not available.');
+
+        $repository->location('missing');
+    }
+
     public function test_builds_a_deterministic_catalog_and_preserves_complete_instructions(): void
     {
         $storage = new InMemorySkillStorage([
@@ -48,6 +58,7 @@ class SkillRepositoryTest extends TestCase
             ['name' => 'analysis', 'description' => 'Analyse evidence'],
             ['name' => 'writing', 'description' => 'Write clearly: for humans'],
         ], $repository->catalog());
+        $this->assertSame(['analysis', 'writing'], $repository->names());
         $this->assertSame($storage->files['writing']['SKILL.md'], $repository->readDocument('writing'));
         $this->assertSame($storage->files['analysis']['SKILL.md'], $repository->readDocument('analysis'));
     }
@@ -113,7 +124,7 @@ class SkillRepositoryTest extends TestCase
         ], $repository->catalog());
         $this->assertSame($storage->files['writing']['SKILL.md'], $repository->readDocument('writing'));
         $this->assertSame('Changed guide.', $repository->readResource('writing', 'guide.md'));
-        $this->expectException(ToolException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Skill "added" is not available.');
         $repository->readDocument('added');
     }
@@ -128,7 +139,7 @@ class SkillRepositoryTest extends TestCase
         ]);
         $repository = new SkillRepository($storage);
 
-        $this->expectException(ToolException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Resource path "" is invalid.');
         $repository->readResource('writing', '');
     }
@@ -142,7 +153,7 @@ class SkillRepositoryTest extends TestCase
         $repository = new SkillRepository($storage);
         $storage->failures['writing'][$path] = 'Read failed.';
 
-        $this->expectException(ToolException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Read failed.');
 
         if ($instructions) {
@@ -169,7 +180,7 @@ class SkillRepositoryTest extends TestCase
         $repository = new SkillRepository($storage);
         $storage->files['writing']['SKILL.md'] = 'Invalid document.';
 
-        $this->expectException(ToolException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Skill "writing" has invalid frontmatter.');
 
         $repository->readDocument('writing');
@@ -179,7 +190,7 @@ class SkillRepositoryTest extends TestCase
     {
         $repository = new SkillRepository(new InMemorySkillStorage([]));
 
-        $this->expectException(ToolException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Skill "unknown" is not available.');
 
         $repository->readResource('unknown', 'guide.md');
@@ -244,13 +255,13 @@ class InMemorySkillStorage implements SkillStorageInterface
     public function read(string $skill, string $path): string
     {
         if (isset($this->failures[$skill][$path])) {
-            throw new ToolException($this->failures[$skill][$path]);
+            throw new RuntimeException($this->failures[$skill][$path]);
         }
         if (!array_key_exists($skill, $this->files)) {
-            throw new ToolException(sprintf('Skill "%s" is not available.', $skill));
+            throw new RuntimeException(sprintf('Skill "%s" is not available.', $skill));
         }
         if (!array_key_exists($path, $this->files[$skill])) {
-            throw new ToolException(sprintf('Resource "%s" was not found in skill "%s".', $path, $skill));
+            throw new RuntimeException(sprintf('Resource "%s" was not found in skill "%s".', $path, $skill));
         }
 
         return $this->files[$skill][$path];

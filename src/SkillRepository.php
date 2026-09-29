@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Skills;
 
-use NeuronAI\Exceptions\ToolException;
+use RuntimeException;
 use NeuronAI\Skills\Storage\SkillStorageInterface;
 
+use function array_column;
 use function array_key_exists;
 use function sort;
 use function sprintf;
@@ -47,7 +48,13 @@ class SkillRepository
         return $catalog;
     }
 
-    /** @throws ToolException */
+    /** @return list<string> */
+    public function names(): array
+    {
+        return array_column($this->catalog(), 'name');
+    }
+
+    /** @throws RuntimeException */
     public function readInstructions(string $name): string
     {
         ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
@@ -55,13 +62,13 @@ class SkillRepository
         $document = (new SkillDocumentParser())->parse($contents, $identifier)['document'];
 
         if ($document === null) {
-            throw new ToolException(sprintf('Skill "%s" has invalid frontmatter.', $name));
+            throw new RuntimeException(sprintf('Skill "%s" has invalid frontmatter.', $name));
         }
 
         return trim($document['body']);
     }
 
-    /** @throws ToolException */
+    /** @throws RuntimeException */
     public function readDocument(string $name): string
     {
         ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
@@ -69,25 +76,25 @@ class SkillRepository
 
         $document = (new SkillDocumentParser())->parse($contents, $identifier)['document'];
         if ($document === null) {
-            throw new ToolException(sprintf('Skill "%s" has invalid frontmatter.', $name));
+            throw new RuntimeException(sprintf('Skill "%s" has invalid frontmatter.', $name));
         }
 
         return $contents;
     }
 
-    /** @throws ToolException */
+    /** @throws RuntimeException */
     public function location(string $name): ?string
     {
         ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
         return $storage->location($identifier);
     }
 
-    /** @throws ToolException */
+    /** @throws RuntimeException */
     public function readResource(string $name, string $path): string
     {
         ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
         if ($path === '') {
-            throw new ToolException('Resource path "" is invalid.');
+            throw new RuntimeException('Resource path "" is invalid.');
         }
 
         return $storage->read($identifier, $path);
@@ -97,7 +104,7 @@ class SkillRepository
     private function getSkill(string $name): array
     {
         if (!array_key_exists($name, $this->skills)) {
-            throw new ToolException(sprintf('Skill "%s" is not available.', $name));
+            throw new RuntimeException(sprintf('Skill "%s" is not available.', $name));
         }
 
         return $this->skills[$name];
@@ -111,7 +118,7 @@ class SkillRepository
         foreach ($skills as $skill) {
             try {
                 $contents = $storage->read($skill, self::MANIFEST);
-            } catch (ToolException $exception) {
+            } catch (RuntimeException $exception) {
                 $this->diagnostics[] = ['skill' => $skill, 'message' => $exception->getMessage()];
                 continue;
             }

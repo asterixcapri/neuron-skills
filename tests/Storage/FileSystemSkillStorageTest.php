@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Skills\Tests\Storage;
 
 use FilesystemIterator;
-use NeuronAI\Exceptions\ToolException;
+use RuntimeException;
 use NeuronAI\Skills\Storage\FileSystemSkillStorage;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
@@ -89,7 +89,7 @@ class FileSystemSkillStorageTest extends TestCase
 
     public function test_unknown_skill_location_is_an_expected_failure(): void
     {
-        $this->expectException(ToolException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Skill "missing" is not available.');
         (new FileSystemSkillStorage($this->skillsRoot))->location('missing');
     }
@@ -230,7 +230,7 @@ class FileSystemSkillStorageTest extends TestCase
         try {
             $read();
             $this->fail('Expected a storage exception.');
-        } catch (ToolException $exception) {
+        } catch (RuntimeException $exception) {
             $this->assertSame($expected, $exception->getMessage());
         }
     }

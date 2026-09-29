@@ -113,20 +113,23 @@ The toolkit registers two tools that the agent can call:
 
 | Tool | Purpose | Inputs |
 | --- | --- | --- |
-| `skill` | Load the complete original `SKILL.md` and base location. | `name` |
+| `skill` | Load the complete original `SKILL.md`. | `name` |
 | `skill_resource` | Read a supporting file from that skill. | `name`, `path` |
 
 Resource paths are relative to the skill, such as `references/style.md`.
 Activation preserves the original frontmatter and Markdown, including optional
-and extension metadata. The initial catalog contains only names and descriptions.
+and extension metadata. The initial catalog contains names, descriptions and
+locations when available.
 Read only the resources needed for the task; activation does not read references,
 scripts or binary assets automatically.
 
-Both tools read text. The filesystem adapter reports the canonical skill directory,
-so authorized host tools can resolve `scripts/check.php` against that location and
+Both tools read text. The filesystem adapter reports the canonical skill directory
+in the catalog, so authorized host tools can resolve `scripts/check.php` against that location and
 execute the actual file with access to neighboring assets. Executing script text
 alone may lose that context. Binary assets are available through appropriate host
 tools; `skill_resource` rejects binary content. The library never executes scripts.
+Nonlocal locations can still be used with `skill` and `skill_resource`, but host
+tools must support the location before using it to access files or run scripts.
 Metadata such as `allowed-tools` does not enable tools or grant permissions:
 execution, file access and authorization remain the host agent's responsibility.
 
@@ -144,7 +147,7 @@ $agent->addTool(new BashTool());
 
 The agent can then call the `bash` tool with a `command`, such as
 `php scripts/check.php`, and set `working_directory` to the skill location
-returned by the `skill` tool. This lets scripts resolve relative paths to their
+listed in the catalog. This lets scripts resolve relative paths to their
 bundled assets. The execution environment must have the required interpreter
 and dependencies installed.
 
@@ -206,29 +209,30 @@ propagate. See the [validation policy](https://github.com/asterixcapri/neuron-sk
 
 ## Runnable Examples
 
-The repository examples use bundled skills and make real OpenAI requests. Copy the
-environment file and add your key before running them:
+The interactive example uses a bundled skill and makes real OpenAI requests.
+Copy the environment file and add your key before running it:
 
 ```sh
 cp examples/.env.example examples/.env
 # Edit examples/.env
 ```
 
-- [`basic.php`](https://github.com/asterixcapri/neuron-skills/blob/main/examples/basic.php) loads project and user skills, mounts the
-  toolkit on a real agent and asks it to use the writing skill. It reads
-  `OPENAI_API_KEY` and optional `OPENAI_MODEL` from the environment.
-- [`agent-loop.php`](https://github.com/asterixcapri/neuron-skills/blob/main/examples/agent-loop.php) activates a skill and lazily reads
-  one of its references through a real agent tool loop.
-- [`host-script.php`](https://github.com/asterixcapri/neuron-skills/blob/main/examples/host-script.php) executes a bundled skill script
-  through Neuron's `BashTool`, preserving access to neighboring assets.
+[`agent-loop.php`](https://github.com/asterixcapri/neuron-skills/blob/main/examples/agent-loop.php)
+accepts messages interactively and streams tool calls and answers. The
+`php-check` skill reads its `references/checks.md` file, runs its bundled PHP
+script through Neuron's `BashTool`, and explains the result.
+Try this message:
+
+> Use php-check to check this PHP runtime and explain the result.
+
+The script needs no input files. The example reads `OPENAI_API_KEY` from the
+environment. Type `exit` to leave the loop.
 
 Run them from this library's checkout:
 
 ```sh
 composer install
-php examples/basic.php
 php examples/agent-loop.php
-php examples/host-script.php
 ```
 
 ## License

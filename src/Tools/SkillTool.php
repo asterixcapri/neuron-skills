@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Skills\Tools;
 
-use NeuronAI\Exceptions\ToolException;
+use RuntimeException;
 use NeuronAI\Skills\SkillRepository;
 use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\PropertyType;
@@ -12,22 +12,13 @@ use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\TrackByInputs;
 
-use function in_array;
-use function sprintf;
-
 class SkillTool extends Tool implements HasRunKey
 {
     use TrackByInputs;
 
-    /**
-     * @internal Created by SkillToolkit; configure tools through the toolkit.
-     * @param string[] $skillNames
-     */
-    public function __construct(
-        protected SkillRepository $repository,
-        protected array $skillNames,
-    ) {
-        parent::__construct('skill', 'Load an available skill\'s complete SKILL.md and base location.');
+    public function __construct(protected SkillRepository $repository)
+    {
+        parent::__construct('skill', 'Load an available skill\'s complete SKILL.md.');
     }
 
     protected function properties(): array
@@ -38,26 +29,16 @@ class SkillTool extends Tool implements HasRunKey
                 type: PropertyType::STRING,
                 description: 'The name of the skill to load.',
                 required: true,
-                enum: $this->skillNames,
+                enum: $this->repository->names(),
             ),
         ];
     }
 
     public function __invoke(string $name): string
     {
-        if (!in_array($name, $this->skillNames, true)) {
-            return sprintf('Skill "%s" is not available.', $name);
-        }
-
         try {
-            $document = $this->repository->readDocument($name);
-            $location = $this->repository->location($name);
-            $context = $location === null
-                ? 'Skill location: unavailable. Read resources with skill_resource; host file access is not established.'
-                : 'Skill location: '.$location;
-
-            return $context."\n\n".$document;
-        } catch (ToolException $exception) {
+            return $this->repository->readDocument($name);
+        } catch (RuntimeException $exception) {
             return $exception->getMessage();
         }
     }

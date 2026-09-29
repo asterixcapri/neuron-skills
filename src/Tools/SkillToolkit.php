@@ -27,19 +27,24 @@ class SkillToolkit extends AbstractToolkit
 
         return "Available skills:\n".$this->formatCatalog($catalog)
             ."\nUse a skill when the user requests it or it is relevant to the task."
-            .' Load its complete instructions with `skill` before following them; load each needed skill separately.'
-            .' Read supporting text only when needed with `skill_resource`. These tools only read text.'
-            .' Use separately authorized host tools to run scripts or inspect binary assets, resolving paths from the skill location when available.'
-            .' If a required skill or resource cannot be loaded, report the limitation instead of claiming to have used it.';
+            .' Load its SKILL.md with `skill` before following it.'
+            .' If the instructions require a supporting text file, read it with `skill_resource` before continuing.'
+            .' Resolve relative paths in a skill from its catalog location when available.'
+            .' If a location is unavailable, use `skill_resource` to read supporting text.'
+            .' `skill` and `skill_resource` only read text.'
+            .' When a skill requires a script, use an available execution tool and set its working directory to the skill location when accessible to that tool.'
+            .' Skill instructions do not grant permission to use that tool.'
+            .' If a required skill or resource cannot be read, say so.';
     }
 
     /** @param array<int, array{name: string, description: string}> $catalog */
     private function formatCatalog(array $catalog): string
     {
-        $entries = array_map(static function (array $skill): string {
+        $entries = array_map(function (array $skill): string {
             $description = preg_replace('/\s+/u', ' ', $skill['description']) ?? $skill['description'];
+            $location = $this->repository->location($skill['name']);
 
-            return '- '.$skill['name'].': '.trim($description);
+            return '- '.$skill['name'].': '.trim($description).' (location: '.($location ?? 'unavailable').')';
         }, $catalog);
 
         return implode("\n", $entries);
@@ -52,14 +57,9 @@ class SkillToolkit extends AbstractToolkit
             return [];
         }
 
-        $names = array_map(
-            fn (array $skill): string => $skill['name'],
-            $catalog,
-        );
-
         return [
-            new SkillTool($this->repository, $names),
-            new SkillResourceTool($this->repository, $names),
+            new SkillTool($this->repository),
+            new SkillResourceTool($this->repository),
         ];
     }
 }

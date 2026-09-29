@@ -9,7 +9,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Exceptions\ToolException;
+use RuntimeException;
 use NeuronAI\Skills\SkillRepository;
 use NeuronAI\Skills\Tools\SkillToolkit;
 use NeuronAI\Skills\Storage\FileSystemSkillStorage;
@@ -66,10 +66,10 @@ class MultipleSkillStoragesTest extends TestCase
             new SkillToolkit(new SkillRepository($project)),
             new SkillToolkit(new SkillRepository($project, $user)),
         ] as $toolkit) {
-            $this->assertStringContainsString('Project', $toolkit->guidelines() ?? '');
+            $this->assertStringContainsString('Project (location: '.$this->root.'/project/123)', $toolkit->guidelines() ?? '');
             [$activation, $resource] = $toolkit->tools();
             $activation->setInputs(['name' => '123'])->execute();
-            $this->assertSame('Skill location: '.$this->root."/project/123\n\n".$projectDocument, $activation->getResult());
+            $this->assertSame($projectDocument, $activation->getResult());
             $resource->setInputs(['name' => '123', 'path' => 'guide.md'])->execute();
             $this->assertSame("project guide for '123'", $resource->getResult());
         }
@@ -93,7 +93,7 @@ class MultipleSkillStoragesTest extends TestCase
         $this->assertSame($userDocument, $reversed->readDocument('shared'));
         $this->assertSame($this->root.'/user/folder', $reversed->location('shared'));
         $this->assertSame('user guide for shared', $reversed->readResource('shared', 'guide.md'));
-        $this->expectException(ToolException::class);
+        $this->expectException(RuntimeException::class);
         $repository->readResource('shared', 'user-only.md');
     }
 
@@ -116,11 +116,11 @@ class MultipleSkillStoragesTest extends TestCase
         $this->assertSame(['invalid/SKILL.md', 'shared/SKILL.md', 'unreadable/SKILL.md'], $fallback->reads);
         $guidelines = $toolkit->guidelines() ?? '';
         $this->assertStringContainsString('shared: First', $guidelines);
+        $this->assertStringContainsString('location: unavailable', $guidelines);
         $this->assertStringContainsString('invalid: Recovered', $guidelines);
         $this->assertStringContainsString('unreadable: Recovered', $guidelines);
         [$activation, $resource] = $toolkit->tools();
         $activation->setInputs(['name' => 'shared'])->execute();
-        $this->assertStringContainsString('unavailable', $activation->getResult());
         $this->assertStringContainsString('description: First', $activation->getResult());
         $resource->setInputs(['name' => 'shared', 'path' => 'guide.md'])->execute();
         $this->assertSame('a-first/guide.md', $resource->getResult());
@@ -164,7 +164,10 @@ class MultipleSkillStoragesTest extends TestCase
         );
         $agent = Agent::make()->setAiProvider($provider)->addTool($toolkit);
         $this->assertSame('Both skills loaded.', $agent->chat(new UserMessage('Analyse and write.'))->getMessage()->getContent());
-        foreach ([$projectDocument, $userDocument, $this->root.'/project/same-folder', $this->root.'/user/same-folder', 'project guide for writing', 'user guide for analysis'] as $expected) {
+        $prompt = $provider->getRecorded()[0]->systemPrompt ?? '';
+        $this->assertStringContainsString($this->root.'/project/same-folder', $prompt);
+        $this->assertStringContainsString($this->root.'/user/same-folder', $prompt);
+        foreach ([$projectDocument, $userDocument, 'project guide for writing', 'user guide for analysis'] as $expected) {
             $provider->assertSent(static function (RequestRecord $request) use ($expected): bool {
                 foreach ($request->messages as $message) {
                     if ($message instanceof ToolResultMessage) {
@@ -207,6 +210,6 @@ class TrackedSkillStorage implements SkillStorageInterface
         if ($path !== 'SKILL.md') {
             return $skill.'/'.$path;
         }
-        return $this->documents[$skill] ?? throw new ToolException('Document unreadable.');
+        return $this->documents[$skill] ?? throw new RuntimeException('Document unreadable.');
     }
 }
