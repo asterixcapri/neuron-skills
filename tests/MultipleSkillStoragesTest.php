@@ -7,6 +7,7 @@ namespace NeuronAI\Skills\Tests;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use RuntimeException;
@@ -153,25 +154,25 @@ class MultipleSkillStoragesTest extends TestCase
         [$skill, $resource] = $toolkit->tools();
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $skill)->setCallId('writing')->setInputs(['name' => 'writing']),
-                (clone $skill)->setCallId('analysis')->setInputs(['name' => 'analysis']),
+                (new ToolCall($skill->getName(), 'writing'))->setInputs(['name' => 'writing']),
+                (new ToolCall($skill->getName(), 'analysis'))->setInputs(['name' => 'analysis']),
             ]),
             new ToolCallMessage(null, [
-                (clone $resource)->setCallId('writing-guide')->setInputs(['name' => 'writing', 'path' => 'guide.md']),
-                (clone $resource)->setCallId('analysis-guide')->setInputs(['name' => 'analysis', 'path' => 'guide.md']),
+                (new ToolCall($resource->getName(), 'writing-guide'))->setInputs(['name' => 'writing', 'path' => 'guide.md']),
+                (new ToolCall($resource->getName(), 'analysis-guide'))->setInputs(['name' => 'analysis', 'path' => 'guide.md']),
             ]),
             new AssistantMessage('Both skills loaded.'),
         );
-        $agent = Agent::make()->setAiProvider($provider)->addTool($toolkit);
+        $agent = Agent::make()->setThreadId('skills-test')->setAiProvider($provider)->addTool($toolkit);
         $this->assertSame('Both skills loaded.', $agent->chat(new UserMessage('Analyse and write.'))->getMessage()->getContent());
-        $prompt = $provider->getRecorded()[0]->systemPrompt ?? '';
+        $prompt = $provider->getRecorded()[0]->systemPrompt?->getContent() ?? '';
         $this->assertStringContainsString($this->root.'/project/same-folder', $prompt);
         $this->assertStringContainsString($this->root.'/user/same-folder', $prompt);
         foreach ([$projectDocument, $userDocument, 'project guide for writing', 'user guide for analysis'] as $expected) {
             $provider->assertSent(static function (RequestRecord $request) use ($expected): bool {
                 foreach ($request->messages as $message) {
                     if ($message instanceof ToolResultMessage) {
-                        foreach ($message->getTools() as $tool) {
+                        foreach ($message->getToolCalls() as $tool) {
                             if (str_contains($tool->getResult(), $expected)) {
                                 return true;
                             }

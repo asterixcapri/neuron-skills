@@ -5,7 +5,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.1",
-        "neuron-core/neuron-ai": "^3.4.6",
+        "neuron-core/neuron-ai": "^4.0",
         "symfony/polyfill-intl-normalizer": "^1.31",
         "symfony/polyfill-mbstring": "^1.31",
         "symfony/yaml": "^6.4 || ^7.0 || ^8.0"

@@ -6,19 +6,21 @@ namespace NeuronAI\Skills\Tools;
 
 use RuntimeException;
 use NeuronAI\Skills\SkillRepository;
-use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\TrackByInputs;
 
-class SkillTool extends Tool implements HasRunKey
+class SkillTool extends Tool
 {
     use TrackByInputs;
 
+    protected string $name = 'skill';
+
+    protected ?string $description = 'Load an available skill\'s complete SKILL.md.';
+
     public function __construct(protected SkillRepository $repository)
     {
-        parent::__construct('skill', 'Load an available skill\'s complete SKILL.md.');
     }
 
     protected function properties(): array

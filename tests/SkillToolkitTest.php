@@ -4,17 +4,23 @@ declare(strict_types=1);
 
 namespace NeuronAI\Skills\Tests;
 
+use Closure;
 use LogicException;
 use RuntimeException;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Skills\SkillRepository;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Tools\ToolProperty;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Skills\Tools\SkillResourceTool;
 use NeuronAI\Skills\Tools\SkillToolkit;
@@ -98,11 +104,11 @@ class SkillToolkitTest extends TestCase
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $skillTool)->setCallId('call_1')->setInputs(['name' => 'writing']),
+                (new ToolCall($skillTool->getName(), 'call_1'))->setInputs(['name' => 'writing']),
             ]),
             new AssistantMessage('I will follow the writing skill.'),
         );
-        $agent = Agent::make()
+        $agent = Agent::make()->setThreadId('skills-test')
             ->setAiProvider($provider)
             ->setInstructions('Be helpful.')
             ->addTool($toolkit);
@@ -111,7 +117,7 @@ class SkillToolkitTest extends TestCase
 
         $this->assertSame('I will follow the writing skill.', $response->getContent());
         $provider->assertToolsConfigured(['skill', 'skill_resource']);
-        $systemPrompt = $provider->getRecorded()[0]->systemPrompt ?? '';
+        $systemPrompt = $provider->getRecorded()[0]->systemPrompt?->getContent() ?? '';
         $this->assertStringContainsString('writing: Write clear prose', $systemPrompt);
         $this->assertStringContainsString('skill', $systemPrompt);
         $this->assertStringContainsString('read it with `skill_resource` before continuing', $systemPrompt);
@@ -126,6 +132,42 @@ class SkillToolkitTest extends TestCase
         ));
     }
 
+    public function test_stream_loads_skills_and_resources_and_returns_the_final_message(): void
+    {
+        $toolkit = new SkillToolkit(new SkillRepository(new FileSystemSkillStorage($this->skillsRoot)));
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [new ToolCall('skill', 'activate', ['name' => 'writing'])]),
+            new ToolCallMessage(null, [new ToolCall('skill_resource', 'read', [
+                'name' => 'writing', 'path' => 'references/style.md',
+            ])]),
+            new AssistantMessage('I read the style guide.'),
+        );
+        $agent = Agent::make()->setThreadId('skills-stream-test')
+            ->setAiProvider($provider)->addTool($toolkit);
+        $stream = $agent->stream(new UserMessage('Load the writing skill and its guide.'));
+        $calls = [];
+        $results = [];
+        $text = '';
+        foreach ($stream as $chunk) {
+            if ($chunk instanceof ToolCallChunk) {
+                $calls[] = $chunk->tool->getName();
+            } elseif ($chunk instanceof ToolResultChunk) {
+                $results[] = $chunk->tool->getResult();
+            } elseif ($chunk instanceof TextChunk) {
+                $text .= $chunk->content;
+            }
+        }
+
+        $this->assertSame(['skill', 'skill_resource'], $calls);
+        $this->assertSame([
+            file_get_contents($this->skillsRoot.'/writing/SKILL.md'),
+            "# Style guide\n\nUse concrete words.\n",
+        ], $results);
+        $this->assertSame('I read the style guide.', $text);
+        $this->assertSame($text, $stream->getReturn()->getMessage()->getContent());
+        $provider->assertCallCount(3);
+    }
+
     public function test_diagnostics_stay_out_of_agent_context_while_tolerated_skill_loads(): void
     {
         file_put_contents($this->skillsRoot.'/writing/SKILL.md', "---\nname: écriture\ndescription: >-\n  Write\n  clearly\nlicense: MIT\n---\nUnicode skill body.");
@@ -134,13 +176,13 @@ class SkillToolkitTest extends TestCase
         $this->assertSame([['skill' => 'writing', 'message' => 'Declared name does not match the storage identifier.']], $repository->diagnostics());
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $toolkit->tools()[0])->setCallId('unicode')->setInputs(['name' => 'écriture']),
+                (new ToolCall('skill', 'unicode'))->setInputs(['name' => 'écriture']),
             ]),
             new AssistantMessage('Loaded.'),
         );
-        Agent::make()->setAiProvider($provider)->setInstructions('Be helpful.')->addTool($toolkit)
+        Agent::make()->setThreadId('skills-test')->setAiProvider($provider)->setInstructions('Be helpful.')->addTool($toolkit)
             ->chat(new UserMessage('Write.'))->getMessage();
-        $prompt = $provider->getRecorded()[0]->systemPrompt ?? '';
+        $prompt = $provider->getRecorded()[0]->systemPrompt?->getContent() ?? '';
         $this->assertStringContainsString('écriture: Write clearly', $prompt);
         $this->assertStringNotContainsString('storage identifier', $prompt);
         $this->assertStringNotContainsString('MIT', $prompt);
@@ -179,14 +221,14 @@ class SkillToolkitTest extends TestCase
         $this->assertSame(['writing'], $nameProperty->getEnum());
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $skillTool)->setCallId('call_1')->setInputs([
+                (new ToolCall($skillTool->getName(), 'call_1'))->setInputs([
                     'name' => 'writing',
                     'path' => 'references/style.md',
                 ]),
             ]),
             new AssistantMessage('I read the style guide.'),
         );
-        $agent = Agent::make()
+        $agent = Agent::make()->setThreadId('skills-test')
             ->setAiProvider($provider)
             ->setInstructions('Be helpful.')
             ->addTool($toolkit);
@@ -196,7 +238,7 @@ class SkillToolkitTest extends TestCase
         $provider->assertToolsConfigured(['skill', 'skill_resource']);
         $this->assertStringNotContainsString(
             'Use concrete words.',
-            $provider->getRecorded()[0]->systemPrompt ?? '',
+            $provider->getRecorded()[0]->systemPrompt?->getContent() ?? '',
         );
         $provider->assertSent(fn (RequestRecord $record): bool => $this->hasToolResult(
             $record,
@@ -230,19 +272,19 @@ class SkillToolkitTest extends TestCase
         [$skillTool, $resourceTool] = $toolkit->tools();
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $skillTool)->setCallId('call_1')->setInputs(['name' => 'analysis']),
+                (new ToolCall($skillTool->getName(), 'call_1'))->setInputs(['name' => 'analysis']),
             ]),
             new ToolCallMessage(null, [
-                (clone $skillTool)->setCallId('call_2')->setInputs(['name' => 'writing']),
+                (new ToolCall($skillTool->getName(), 'call_2'))->setInputs(['name' => 'writing']),
             ]),
             new ToolCallMessage(null, [
-                (clone $resourceTool)->setCallId('call_3')->setInputs([
+                (new ToolCall($resourceTool->getName(), 'call_3'))->setInputs([
                     'name' => 'writing',
                     'path' => 'references/style.md',
                 ]),
             ]),
             new ToolCallMessage(null, [
-                (clone $resourceTool)->setCallId('call_4')->setInputs([
+                (new ToolCall($resourceTool->getName(), 'call_4'))->setInputs([
                     'name' => 'writing',
                     'path' => 'references/examples.md',
                 ]),
@@ -250,7 +292,7 @@ class SkillToolkitTest extends TestCase
             new AssistantMessage('All distinct reads completed.'),
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('skills-test');
         $agent
             ->setAiProvider($provider)
             ->setInstructions('Be helpful.')
@@ -269,7 +311,10 @@ class SkillToolkitTest extends TestCase
         $tool->setInputs(['name' => 'unknown']);
         $tool->execute();
 
-        $this->assertSame('Skill "unknown" is not available.', $tool->getResult());
+        $result = $tool->getResult();
+        $this->assertInstanceOf(ToolOutput::class, $result);
+        $this->assertTrue($result->isError());
+        $this->assertSame('Parameter "name" must be one of "writing"; "unknown" given.', $result->getText());
     }
 
     public function test_unknown_skill_resource_is_a_model_readable_result(): void
@@ -278,7 +323,10 @@ class SkillToolkitTest extends TestCase
         $tool->setInputs(['name' => 'unknown', 'path' => 'guide.md']);
         $tool->execute();
 
-        $this->assertSame('Skill "unknown" is not available.', $tool->getResult());
+        $result = $tool->getResult();
+        $this->assertInstanceOf(ToolOutput::class, $result);
+        $this->assertTrue($result->isError());
+        $this->assertSame('Parameter "name" must be one of "writing"; "unknown" given.', $result->getText());
     }
 
     public function test_null_byte_resource_path_is_a_model_readable_result(): void
@@ -307,7 +355,7 @@ class SkillToolkitTest extends TestCase
         $script = "<?php\n\necho 'checked';\n";
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $resourceTool)->setCallId('call_1')->setInputs([
+                (new ToolCall($resourceTool->getName(), 'call_1'))->setInputs([
                     'name' => 'writing',
                     'path' => 'scripts/check.php',
                 ]),
@@ -315,7 +363,7 @@ class SkillToolkitTest extends TestCase
             new AssistantMessage('I read the script as text.'),
         );
 
-        Agent::make()
+        Agent::make()->setThreadId('skills-test')
             ->setAiProvider($provider)
             ->setInstructions('Be helpful.')
             ->addTool($toolkit)
@@ -350,12 +398,12 @@ class SkillToolkitTest extends TestCase
         $tool = $toolkit->tools()[$toolIndex];
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $tool)->setCallId('failed_read')->setInputs($inputs),
+                (new ToolCall($tool->getName(), 'failed_read'))->setInputs($inputs),
             ]),
             new AssistantMessage('I could not read that file.'),
         );
 
-        $response = Agent::make()
+        $response = Agent::make()->setThreadId('skills-test')
             ->setAiProvider($provider)
             ->setInstructions('Use the available skills.')
             ->addTool($toolkit)
@@ -546,7 +594,7 @@ class SkillToolkitTest extends TestCase
         $this->assertSame([], $toolkit->tools());
 
         $provider = new FakeAIProvider(new AssistantMessage('Hello.'));
-        Agent::make()
+        Agent::make()->setThreadId('skills-test')
             ->setAiProvider($provider)
             ->setInstructions('Be helpful.')
             ->addTool($toolkit)
@@ -554,7 +602,7 @@ class SkillToolkitTest extends TestCase
             ->getMessage();
 
         $this->assertSame([], $provider->getRecorded()[0]->tools);
-        $this->assertStringNotContainsString('SkillToolkit', $provider->getRecorded()[0]->systemPrompt ?? '');
+        $this->assertStringNotContainsString('SkillToolkit', $provider->getRecorded()[0]->systemPrompt?->getContent() ?? '');
     }
 
     public function test_activation_retains_original_yaml_syntax(): void
@@ -679,36 +727,48 @@ class SkillToolkitTest extends TestCase
         $location = $this->skillsRoot.'/writing';
         $this->assertStringContainsString('location: '.$location, $guidelines);
         [$skillTool, $resourceTool] = $toolkit->tools();
-        $activation = (clone $skillTool)->setCallId('activate')->setInputs(['name' => 'writing']);
+        $activation = (new ToolCall($skillTool->getName(), 'activate'))->setInputs(['name' => 'writing']);
         // Host-owned execution: the library itself never launches the script.
-        $host = (new Tool('run_skill_check', 'Run the permitted example check script.'))
-            ->setCallable(function () use ($location, $marker): string {
-                $this->assertFileDoesNotExist($marker);
-                $this->assertSame(realpath($this->skillsRoot.'/writing'), $location);
-                $process = proc_open([PHP_BINARY, $location.'/scripts/check.php'], [1 => ['pipe', 'w']], $pipes);
-                $this->assertIsResource($process);
-                $output = stream_get_contents($pipes[1]);
-                fclose($pipes[1]);
-                $this->assertSame(0, proc_close($process));
-                $this->assertIsString($output);
-                return $output;
-            });
+        $host = new class (function () use ($location, $marker): string {
+            $this->assertFileDoesNotExist($marker);
+            $this->assertSame(realpath($this->skillsRoot.'/writing'), $location);
+            $process = proc_open([PHP_BINARY, $location.'/scripts/check.php'], [1 => ['pipe', 'w']], $pipes);
+            $this->assertIsResource($process);
+            $output = stream_get_contents($pipes[1]);
+            fclose($pipes[1]);
+            $this->assertSame(0, proc_close($process));
+            $this->assertIsString($output);
+            return $output;
+        }) extends Tool {
+            protected string $name = 'run_skill_check';
+            protected ?string $description = 'Run the permitted example check script.';
+
+            /** @param Closure(): string $callback */
+            public function __construct(private Closure $callback)
+            {
+            }
+
+            public function __invoke(): string
+            {
+                return ($this->callback)();
+            }
+        };
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [$activation]),
-            new ToolCallMessage(null, [(clone $resourceTool)->setCallId('read_script')->setInputs([
+            new ToolCallMessage(null, [(new ToolCall($resourceTool->getName(), 'read_script'))->setInputs([
                 'name' => 'writing', 'path' => 'scripts/check.php',
             ])]),
-            new ToolCallMessage(null, [(clone $host)->setCallId('host_check')->setInputs([])]),
+            new ToolCallMessage(null, [(new ToolCall($host->getName(), 'host_check'))->setInputs([])]),
             new AssistantMessage('Check complete.'),
         );
         try {
             $this->assertFileDoesNotExist($marker);
-            Agent::make()->setAiProvider($provider)->setInstructions('Run the permitted check.')
+            Agent::make()->setThreadId('skills-test')->setAiProvider($provider)->setInstructions('Run the permitted check.')
                 ->addTool($toolkit)->addTool($host)->chat(new UserMessage('Check the asset.'))->getMessage();
             $this->assertFileExists($marker);
             $provider->assertSent(fn (RequestRecord $record): bool => $this->hasToolResult($record, $script));
             $provider->assertSent(fn (RequestRecord $record): bool => $this->hasToolResult($record, hash('sha256', $asset)));
-            $this->assertStringNotContainsString($asset, $provider->getRecorded()[0]->systemPrompt ?? '');
+            $this->assertStringNotContainsString($asset, $provider->getRecorded()[0]->systemPrompt?->getContent() ?? '');
         } finally {
             unlink($this->skillsRoot.'/writing/references/value.bin');
             if (file_exists($marker)) {
@@ -724,7 +784,7 @@ class SkillToolkitTest extends TestCase
                 continue;
             }
 
-            foreach ($message->getTools() as $tool) {
+            foreach ($message->getToolCalls() as $tool) {
                 if ($tool->getResult() === $expected) {
                     return true;
                 }
