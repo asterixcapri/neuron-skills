@@ -13,7 +13,13 @@ use NeuronAI\Skills\Tools\SkillToolkit;
 use NeuronAI\Tools\Toolkits\FileSystem\BashTool;
 use Symfony\Component\Dotenv\Dotenv;
 
-require dirname(__DIR__).'/vendor/autoload.php';
+$autoload = dirname(__DIR__).'/vendor/autoload.php';
+if (!is_file($autoload)) {
+    fwrite(STDERR, 'Dependencies not installed. Run composer install from the repository root.'.PHP_EOL);
+    exit(1);
+}
+
+require $autoload;
 
 $envFile = __DIR__.'/.env';
 if (is_file($envFile)) {
@@ -26,16 +32,28 @@ if (!is_string($key) || $key === '') {
     exit(1);
 }
 
+$model = $_ENV['OPENAI_MODEL'] ?? getenv('OPENAI_MODEL');
+if (!is_string($model) || trim($model) === '') {
+    $model = 'gpt-5.4-nano';
+}
+
 $skills = new SkillRepository(
+    // Bundled skills first; skills installed by the CLI in examples/ second.
     new FileSystemSkillStorage(__DIR__.'/skills'),
-    new FileSystemSkillStorage(__DIR__.'/.agents/skills')
+    new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
 );
 
 $agent = Agent::make()
-    ->setAiProvider(new OpenAI(key: $key, model: 'gpt-5.4-nano'))
+    ->setAiProvider(new OpenAI(key: $key, model: $model))
     ->addTool(new SkillToolkit($skills))
     ->addTool(new BashTool());
 
+echo 'Available skills: '.implode(', ', $skills->names()).PHP_EOL;
+foreach ($skills->diagnostics() as $diagnostic) {
+    fwrite(STDERR, sprintf("[skill: %s] %s\n", $diagnostic['skill'], $diagnostic['message']));
+}
+echo "Try php-check for runtime checks or caveman for terse answers.\n";
+echo "See examples/README.md for setup and both scenarios.\n";
 echo "Type a message, or 'exit' to quit.\n";
 
 while (true) {
