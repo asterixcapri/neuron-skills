@@ -31,27 +31,50 @@ The startup list should include `php-check` and `caveman`.
 
 ## Try this conversation
 
-Enter these messages at `You>`, one after the other. This shortened example
-shows the tool calls printed by the script; wording, paths and results can vary.
+Enter these messages at `You>`, one after the other. This example shows an
+actual conversation; wording, paths and results can vary on your machine.
 
 ```text
-You> Use caveman skill to explain the difference between authentication and authorization.
+$ php agent-loop.php
+Available skills: php-check, caveman
+Try php-check for runtime checks or caveman for terse answers.
+See examples/README.md for setup and both scenarios.
+Type a message, or 'exit' to quit.
+
+You> use caveman skill to explain the universe
 Agent>
 [tool: skill {"name":"caveman"}]
-Authentication: who you are. Authorization: what you can do.
+Universe = space + time + matter + energy.
+Big Bang start: hot dense state, then expansion, cooling.
+Stars form: gravity clumps gas, nuclear fusion makes elements.
+Supernova spread elements, build planets, life possible.
+Cosmos keeps expanding; dark energy drives late-time acceleration.
+Gravity shapes: galaxies, clusters, filaments, voids.
+Physics rules stay: quantum for tiny, relativity for big gravity.
 
-You> Now use php-check: read references/checks.md with skill_resource, then run scripts/check.php with bash and explain the results.
+You> very well done!
+Agent> Thanks.
+
+You> now use php-check skill and explain the results
 Agent>
 [tool: skill {"name":"php-check"}]
+
 [tool: skill_resource {"name":"php-check","path":"references/checks.md"}]
-[tool: bash {"command":"php scripts/check.php","working_directory":"/path/to/neuron-skills/examples/skills/php-check"}]
-PHP 8.1+, curl, json and proc_open: all checks passed.
 
-You> Does that also confirm that network access and OpenAI requests work?
-Agent>
-No. The script checks the local PHP runtime, not network access or API requests.
+[tool: bash {"command":"php scripts/check.php","working_directory":"/home/asterix/asterixcapri/neuron-skills/examples/skills/php-check"}]
+Caveman results:
 
-You> exit
+- PHP_VERSION=8.5.8. Pass. Need PHP 8.1+.
+- CURL_EXTENSION=loaded. Pass. cURL HTTP ok.
+- JSON_EXTENSION=loaded. Pass. JSON ops ok.
+- PROC_OPEN=available. Pass. Can spawn external cmd.
+
+Next: runtime ok. No app cfg/API test here. Run your app tests next.
+
+You> nice
+Agent> Nice.
+
+You> quit
 ```
 
 `skill` loads the instructions, `skill_resource` reads the reference, and `bash`
