@@ -44,6 +44,7 @@ $skills = new SkillRepository(
 );
 
 $agent = Agent::make()
+    ->setThreadId(bin2hex(random_bytes(16)))
     ->setAiProvider(new OpenAI(key: $key, model: $model))
     ->addTool(new SkillToolkit($skills))
     ->addTool(new BashTool());
@@ -72,7 +73,7 @@ while (true) {
     }
 
     echo 'Agent> ';
-    foreach ($agent->stream(new UserMessage($input))->events() as $event) {
+    foreach ($agent->stream(new UserMessage($input)) as $event) {
         if ($event instanceof ToolCallChunk) {
             echo sprintf(
                 "\n[tool: %s %s]\n",

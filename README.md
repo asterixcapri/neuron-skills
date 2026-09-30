@@ -29,8 +29,9 @@ multiple skill directories in the same agent.
 
 ## Installation
 
-Requires PHP 8.1+ and Neuron AI ^3.4.6. There is no tagged release yet; install
-from a local checkout until the first release is available.
+Requires PHP 8.1+ and Neuron AI ^4.0. Neuron AI 3.x is no longer supported.
+There is no tagged release yet; install from a local checkout until the first
+release is available.
 
 From your application's root, clone this repository alongside it and register
 it as a Composer path repository:
@@ -66,7 +67,8 @@ $skills = new SkillRepository(
     new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
 );
 
-// $agent already has your AI provider configured.
+// $agent already has your AI provider and a thread ID configured.
+// For a new conversation: $agent->setThreadId(bin2hex(random_bytes(16)));
 $agent->addTool(new SkillToolkit($skills));
 
 $response = $agent->chat(new UserMessage(
@@ -135,6 +137,8 @@ library; the demo displays them at startup.
 When the agent calls `skill` or `skill_resource`, expected read failures become
 messages it can read. Unexpected exceptions propagate to the application.
 Direct repository reads throw exceptions for expected failures as well.
+Neuron AI validates tool arguments before execution; a skill name outside the
+catalog produces a `ToolOutput` error that the agent can read.
 
 ## Invocation metadata
 
