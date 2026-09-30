@@ -29,7 +29,8 @@ multiple skill directories in the same agent.
 
 ## Installation
 
-Requires PHP 8.1+ and Neuron AI ^4.0. Neuron AI 3.x is no longer supported.
+Requires PHP 8.1+ and Neuron AI ^4.0. For Neuron AI 3.x support, use the
+[`0.8.x` branch](https://github.com/asterixcapri/neuron-skills/tree/0.8.x).
 There is no tagged release yet; install from a local checkout until the first
 release is available.
 
