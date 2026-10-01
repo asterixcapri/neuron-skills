@@ -13,10 +13,16 @@ and supporting resources when needed. It follows the open
 [Agent Skills specification](https://agentskills.io/specification) and supports
 local directories as well as custom storage.
 
+![Neuron Agent Skills Package](docs/cover.png)
+
 ## Installation
 
-Requires PHP 8.1+ and Neuron AI ^4.0. For Neuron AI 3.x support, use the
-[`0.8.x` branch](https://github.com/neuron-core/agent-skills/tree/0.8.x).
+Requires PHP 8.1+.
+
+| Agent Skills | Neuron AI |
+| --- | --- |
+| 1.x (current) | 4.x |
+| 0.x | 3.x |
 
 ```sh
 composer require neuron-core/agent-skills
