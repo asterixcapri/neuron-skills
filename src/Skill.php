@@ -6,6 +6,7 @@ namespace NeuronAI\Skills;
 
 use NeuronAI\Skills\Storage\SkillStorageInterface;
 use RuntimeException;
+use stdClass;
 
 use function sprintf;
 use function trim;
@@ -44,6 +45,12 @@ final class Skill
     }
 
     /** @throws RuntimeException */
+    public function readFrontmatter(): stdClass
+    {
+        return $this->parseDocument($this->storage->read($this->identifier, 'SKILL.md'))['frontmatter'];
+    }
+
+    /** @throws RuntimeException */
     public function readDocument(): string
     {
         $contents = $this->storage->read($this->identifier, 'SKILL.md');
@@ -62,7 +69,7 @@ final class Skill
         return $this->storage->read($this->identifier, $path);
     }
 
-    /** @return array{name: string, description: string, body: string, frontmatter: \stdClass} */
+    /** @return array{name: string, description: string, body: string, frontmatter: stdClass} */
     private function parseDocument(string $contents): array
     {
         $document = (new SkillDocumentParser())->parse($contents, $this->identifier)['document'];
