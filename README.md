@@ -78,7 +78,13 @@ The agent can load `caveman` and answer in its terse style, for example:
 > Authentication: who you are. Authorization: what you can do.
 > Login proves identity. Permissions control access.
 
-## Skill Tools
+## How Skills Work
+
+The agent initially sees each skill's name, description and location. When a
+skill is relevant to the task, it uses `skill` to load its instructions. If those
+instructions reference supporting files, it can read them with `skill_resource`.
+This keeps the initial context small while making the full skill available when
+needed.
 
 The toolkit registers two tools:
 
