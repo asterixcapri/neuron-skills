@@ -383,6 +383,7 @@ class SkillToolkitTest extends TestCase
         string $expected,
     ): void {
         $toolkit = new SkillToolkit(new SkillRepository(new FileSystemSkillStorage($this->skillsRoot)));
+        $toolkit->guidelines();
 
         if ($toolIndex === 0) {
             if ($invalidManifest) {
@@ -555,6 +556,7 @@ class SkillToolkitTest extends TestCase
             }
         };
         $toolkit = new SkillToolkit(new SkillRepository($storage));
+        $toolkit->guidelines();
         $storage->manifests = [
             'third' => "---\nname: third\ndescription: Third skill\n---\nThird.",
         ];
@@ -689,7 +691,7 @@ class SkillToolkitTest extends TestCase
             }
         };
         $toolkit = new SkillToolkit(new SkillRepository($storage));
-        $this->assertSame([['source-id', 'SKILL.md']], $storage->reads);
+        $this->assertSame([], $storage->reads);
         $this->assertSame([], $storage->locations);
         $guidelines = $toolkit->guidelines() ?? '';
         $this->assertStringNotContainsString('x-extension', $guidelines);

@@ -100,8 +100,10 @@ class MultipleSkillStoragesTest extends TestCase
         $this->assertSame($projectDocument, $selected->readDocument());
         $this->assertSame($userDocument, $repository->get('extra')->readDocument());
         $this->assertSame(['shared', 'extra'], $repository->names());
-        $this->assertStringContainsString('storage #2', $repository->diagnostics()[0]['message']);
-        $this->assertStringContainsString('storage #1', $repository->diagnostics()[0]['message']);
+        $this->assertSame(
+            'Skill "shared" is shadowed by an earlier candidate with the same name.',
+            $repository->diagnostics()[0]['message'],
+        );
         $this->assertStringContainsString('shared: Project', $toolkit->guidelines() ?? '');
         $this->assertStringContainsString('extra: Extra', $toolkit->guidelines() ?? '');
         $this->assertCount(2, $toolkit->tools());
@@ -140,7 +142,7 @@ class MultipleSkillStoragesTest extends TestCase
         $this->assertSame($this->root.'/project/folder', $repository->get('shared')->location());
         $this->assertSame('project guide for shared', $repository->get('shared')->readResource('guide.md'));
         $messages = array_column($repository->diagnostics(), 'message');
-        $this->assertContains('Skill "shared" from storage #2 candidate "folder" is shadowed by storage #1 candidate "folder".', $messages);
+        $this->assertContains('Skill "shared" is shadowed by an earlier candidate with the same name.', $messages);
         $reversed = new SkillRepository($user, $project);
         $this->assertSame($userDocument, $reversed->get('shared')->readDocument());
         $this->assertSame($this->root.'/user/folder', $reversed->get('shared')->location());
@@ -164,6 +166,7 @@ class MultipleSkillStoragesTest extends TestCase
         ]);
         $repository = new SkillRepository($primary, $fallback);
         $toolkit = new SkillToolkit($repository);
+        $guidelines = $toolkit->guidelines() ?? '';
         $this->assertSame(['a-first/SKILL.md', 'invalid/SKILL.md', 'unreadable/SKILL.md', 'z-last/SKILL.md'], $primary->reads);
         $this->assertSame(['invalid/SKILL.md', 'shared/SKILL.md', 'unreadable/SKILL.md'], $fallback->reads);
         $guidelines = $toolkit->guidelines() ?? '';
