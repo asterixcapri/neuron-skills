@@ -68,7 +68,6 @@ $toolkit = SkillToolkit::fromStorage(
 );
 
 // $agent already has your AI provider and a thread ID configured.
-// For a new conversation: $agent->setThreadId(bin2hex(random_bytes(16)));
 $agent->addTool($toolkit);
 
 $response = $agent->chat(new UserMessage(
