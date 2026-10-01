@@ -25,16 +25,23 @@ class SkillRepository
     /** @var list<array{skill: string, message: string}> */
     protected array $diagnostics = [];
 
+    private int $storageCount = 0;
+
     /** @return list<array{skill: string, message: string}> */
     public function diagnostics(): array
     {
         return $this->diagnostics;
     }
 
-    public function __construct(SkillStorageInterface $storage, SkillStorageInterface ...$fallbackStorages)
+    public function __construct(SkillStorageInterface ...$storages)
     {
-        foreach ([$storage, ...$fallbackStorages] as $index => $source) {
-            $this->buildCatalog($source, $index + 1);
+        $this->addStorage(...$storages);
+    }
+
+    public function addStorage(SkillStorageInterface ...$storages): void
+    {
+        foreach ($storages as $storage) {
+            $this->buildCatalog($storage, ++$this->storageCount);
         }
     }
 
