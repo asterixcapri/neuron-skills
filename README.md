@@ -1,6 +1,6 @@
 # Neuron AI Skills
 
-[![Tests](https://github.com/neuron-core/neuron-skills/actions/workflows/tests.yml/badge.svg)](https://github.com/neuron-core/neuron-skills/actions/workflows/tests.yml)
+[![Tests](https://github.com/neuron-core/agent-skills/actions/workflows/tests.yml/badge.svg)](https://github.com/neuron-core/agent-skills/actions/workflows/tests.yml)
 [![PHP](https://img.shields.io/badge/PHP-8.1%2B-777BB4?logo=php&logoColor=white)](composer.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -16,7 +16,7 @@ local directories as well as custom storage.
 ## Installation
 
 Requires PHP 8.1+ and Neuron AI ^4.0. For Neuron AI 3.x support, use the
-[`0.8.x` branch](https://github.com/neuron-core/neuron-skills/tree/0.8.x).
+[`0.8.x` branch](https://github.com/neuron-core/agent-skills/tree/0.8.x).
 
 ```sh
 composer require neuron-core/agent-skills
@@ -164,7 +164,7 @@ sample conversations using skills and supporting resources.
 
 ## Contributing
 
-Report bugs and propose changes through [GitHub Issues](https://github.com/neuron-core/neuron-skills/issues)
+Report bugs and propose changes through [GitHub Issues](https://github.com/neuron-core/agent-skills/issues)
 and pull requests. From the repository root, run the development checks with:
 
 ```sh
