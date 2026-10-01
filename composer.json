@@ -1,5 +1,5 @@
 {
-    "name": "asterixcapri/neuron-skills",
+    "name": "neuron-core/neuron-skills",
     "description": "Agent Skills toolkit with pluggable storage for Neuron AI.",
     "type": "library",
     "license": "MIT",

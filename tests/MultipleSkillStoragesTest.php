@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use RuntimeException;
+use NeuronAI\Skills\Skill;
 use NeuronAI\Skills\SkillRepository;
 use NeuronAI\Skills\Tools\SkillToolkit;
 use NeuronAI\Skills\Storage\FileSystemSkillStorage;
@@ -65,6 +66,8 @@ class MultipleSkillStoragesTest extends TestCase
         foreach ([
             new SkillToolkit(new SkillRepository($project)),
             new SkillToolkit(new SkillRepository($project, $user)),
+            SkillToolkit::make()->fromStorage($project),
+            SkillToolkit::make()->fromStorage($project, $user),
         ] as $toolkit) {
             $this->assertStringContainsString('Project (location: '.$this->root.'/project/123)', $toolkit->guidelines() ?? '');
             [$activation, $resource] = $toolkit->tools();
@@ -75,6 +78,52 @@ class MultipleSkillStoragesTest extends TestCase
         }
     }
 
+    public function test_storage_configuration_extends_a_shared_repository_in_order(): void
+    {
+        $projectDocument = $this->skill('project', 'shared', 'shared', 'Project');
+        $this->skill('user', 'shared', 'shared', 'User');
+        $userDocument = $this->skill('user', 'extra', 'extra', 'Extra');
+        $repository = new SkillRepository();
+        $toolkit = SkillToolkit::make($repository);
+
+        $this->assertSame([], $repository->catalog());
+        $this->assertSame([], $repository->names());
+        $this->assertSame([], $repository->diagnostics());
+        $this->assertNull($toolkit->guidelines());
+        $this->assertCount(0, $toolkit->tools());
+
+        $repository->addStorage(new FileSystemSkillStorage($this->root.'/project'));
+        $selected = $repository->get('shared');
+        $this->assertSame($toolkit, $toolkit->fromStorage(new FileSystemSkillStorage($this->root.'/user')));
+        $this->assertSame($selected, $repository->get('shared'));
+        $this->assertSame($projectDocument, $selected->readDocument());
+        $this->assertSame($userDocument, $repository->get('extra')->readDocument());
+        $this->assertSame(['shared', 'extra'], $repository->names());
+        $this->assertSame(
+            'Skill "shared" is shadowed by an earlier candidate with the same name.',
+            $repository->diagnostics()[0]['message'],
+        );
+        $this->assertStringContainsString('shared: Project', $toolkit->guidelines() ?? '');
+        $this->assertStringContainsString('extra: Extra', $toolkit->guidelines() ?? '');
+        $this->assertCount(2, $toolkit->tools());
+    }
+
+    public function test_repeated_storage_configuration_preserves_precedence(): void
+    {
+        $projectDocument = $this->skill('project', 'shared', 'shared', 'Project');
+        $this->skill('user', 'shared', 'shared', 'User');
+        $toolkit = SkillToolkit::make();
+
+        $this->assertNull($toolkit->guidelines());
+        $this->assertCount(0, $toolkit->tools());
+        $toolkit->fromStorage(new FileSystemSkillStorage($this->root.'/project'));
+        $toolkit->fromStorage(new FileSystemSkillStorage($this->root.'/user'));
+
+        [$activation] = $toolkit->tools();
+        $activation->setInputs(['name' => 'shared'])->execute();
+        $this->assertSame($projectDocument, $activation->getResult());
+    }
+
     public function test_precedence_keeps_documents_locations_and_resources_together(): void
     {
         $projectDocument = $this->skill('project', 'folder', 'shared', 'Project');
@@ -82,19 +131,23 @@ class MultipleSkillStoragesTest extends TestCase
         file_put_contents($this->root.'/user/folder/user-only.md', 'Must not leak');
         $project = new FileSystemSkillStorage($this->root.'/project');
         $user = new FileSystemSkillStorage($this->root.'/user');
-        $repository = new SkillRepository($project, $user);
-        $this->assertSame([['name' => 'shared', 'description' => 'Project']], $repository->catalog());
-        $this->assertSame($projectDocument, $repository->readDocument('shared'));
-        $this->assertSame($this->root.'/project/folder', $repository->location('shared'));
-        $this->assertSame('project guide for shared', $repository->readResource('shared', 'guide.md'));
+        $repository = new SkillRepository();
+        $repository->addStorage($project, $user);
+        $this->assertSame([['name' => 'shared', 'description' => 'Project']], array_map(
+            static fn (Skill $skill): array => ['name' => $skill->name(), 'description' => $skill->description()],
+            $repository->catalog(),
+        ));
+        $this->assertSame($projectDocument, $repository->get('shared')->readDocument());
+        $this->assertSame($this->root.'/project/folder', $repository->get('shared')->location());
+        $this->assertSame('project guide for shared', $repository->get('shared')->readResource('guide.md'));
         $messages = array_column($repository->diagnostics(), 'message');
-        $this->assertContains('Skill "shared" from storage #2 candidate "folder" is shadowed by storage #1 candidate "folder".', $messages);
+        $this->assertContains('Skill "shared" is shadowed by an earlier candidate with the same name.', $messages);
         $reversed = new SkillRepository($user, $project);
-        $this->assertSame($userDocument, $reversed->readDocument('shared'));
-        $this->assertSame($this->root.'/user/folder', $reversed->location('shared'));
-        $this->assertSame('user guide for shared', $reversed->readResource('shared', 'guide.md'));
+        $this->assertSame($userDocument, $reversed->get('shared')->readDocument());
+        $this->assertSame($this->root.'/user/folder', $reversed->get('shared')->location());
+        $this->assertSame('user guide for shared', $reversed->get('shared')->readResource('guide.md'));
         $this->expectException(RuntimeException::class);
-        $repository->readResource('shared', 'user-only.md');
+        $repository->get('shared')->readResource('user-only.md');
     }
 
     public function test_unusable_and_unreadable_candidates_allow_fallback_while_warnings_keep_precedence(): void
@@ -112,6 +165,7 @@ class MultipleSkillStoragesTest extends TestCase
         ]);
         $repository = new SkillRepository($primary, $fallback);
         $toolkit = new SkillToolkit($repository);
+        $guidelines = $toolkit->guidelines() ?? '';
         $this->assertSame(['a-first/SKILL.md', 'invalid/SKILL.md', 'unreadable/SKILL.md', 'z-last/SKILL.md'], $primary->reads);
         $this->assertSame(['invalid/SKILL.md', 'shared/SKILL.md', 'unreadable/SKILL.md'], $fallback->reads);
         $guidelines = $toolkit->guidelines() ?? '';
@@ -138,7 +192,7 @@ class MultipleSkillStoragesTest extends TestCase
             new TrackedSkillStorage([]),
             new TrackedSkillStorage(['broken' => 'invalid']),
         ));
-        $this->assertSame([], $toolkit->tools());
+        $this->assertCount(0, $toolkit->tools());
         $this->assertNull($toolkit->guidelines());
     }
 

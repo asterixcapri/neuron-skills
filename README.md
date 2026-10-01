@@ -1,87 +1,73 @@
 # Neuron AI Skills
 
-[![Tests](https://github.com/asterixcapri/neuron-skills/actions/workflows/tests.yml/badge.svg)](https://github.com/asterixcapri/neuron-skills/actions/workflows/tests.yml)
+[![Tests](https://github.com/neuron-core/neuron-skills/actions/workflows/tests.yml/badge.svg)](https://github.com/neuron-core/neuron-skills/actions/workflows/tests.yml)
 [![PHP](https://img.shields.io/badge/PHP-8.1%2B-777BB4?logo=php&logoColor=white)](composer.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-This package provides a `SkillToolkit` component for [Neuron AI](https://github.com/neuron-core/neuron-ai)
-agents. It discovers reusable task instructions and lets the agent load them
-when needed.
+Add Agent Skills to your [Neuron AI](https://github.com/neuron-core/neuron-ai)
+agents with `SkillToolkit`. Combine your own skills with community packages and
+make them available to the agent through a single toolkit.
 
-The skill format is based on the open
-[Agent Skills specification](https://agentskills.io/specification), which defines
-`SKILL.md` documents and their supporting resources.
-
-A skill is a `SKILL.md` document with a name, a description and instructions,
-optionally accompanied by references, scripts or other supporting files.
-The agent starts with names, descriptions and available locations, then loads
-the instructions and resources relevant to its task.
-
-You can install community skills from [skills.sh](https://skills.sh) and combine
-multiple skill directories in the same agent.
-
-## When to Use It
-
-- Give your agent task-specific guidance for writing, design or code review.
-- Reuse community skills with a Neuron AI agent.
-- Share team conventions across agents without duplicating their system prompts.
-- Keep detailed instructions and resources available without loading every document upfront.
+The library handles skill discovery and provides tools for loading instructions
+and supporting resources when needed. It follows the open
+[Agent Skills specification](https://agentskills.io/specification) and supports
+local directories as well as custom storage.
 
 ## Installation
 
-Requires PHP 8.1+ and Neuron AI ^3.4.6. There is no tagged release yet; install
-from a local checkout until the first release is available.
-
-From your application's root, clone this repository alongside it and register
-it as a Composer path repository:
+Requires PHP 8.1+ and Neuron AI ^3.4.6. For Neuron AI 4.x support, use the
+[`0.9.x` branch](https://github.com/neuron-core/neuron-skills/tree/0.9.x).
 
 ```sh
-git clone https://github.com/asterixcapri/neuron-skills.git ../neuron-skills
-composer config repositories.neuron-skills path ../neuron-skills
-composer require 'asterixcapri/neuron-skills:@dev'
+composer require 'neuron-core/neuron-skills:^0.8'
 ```
-
-Adjust the path if your checkout is elsewhere. To try the standalone demo,
-follow [Runnable Examples](#runnable-examples) instead.
 
 ## Quick Start
 
-Install a community skill from your application's root:
+Find community skills on [skills.sh](https://skills.sh) and install one from
+your application's root:
 
 ```sh
 npx skills add juliusbrussee/caveman --skill caveman --agent universal --yes
 ```
 
 The [Skills CLI](https://github.com/vercel-labs/skills) requires Node.js/npm and
-installs `caveman` into `.agents/skills`. Register that directory on your
-configured Neuron AI agent:
+installs `caveman` into `.agents/skills`. Create an agent and register that
+directory, replacing `your-api-key` with your OpenAI API key:
 
 ```php
+use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Skills\SkillRepository;
+use NeuronAI\Providers\OpenAI\OpenAI;
 use NeuronAI\Skills\Storage\FileSystemSkillStorage;
 use NeuronAI\Skills\Tools\SkillToolkit;
 
-$skills = new SkillRepository(
-    new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
-);
+$toolkit = SkillToolkit::make()
+    ->fromStorage(new FileSystemSkillStorage(__DIR__.'/.agents/skills'));
 
-// $agent already has your AI provider configured.
-$agent->addTool(new SkillToolkit($skills));
+$agent = Agent::make()
+    ->setAiProvider(new OpenAI(key: 'your-api-key', model: 'gpt-5.4-nano'))
+    ->addTool($toolkit);
 
 $response = $agent->chat(new UserMessage(
-    'Use caveman skill to explain the difference between authentication and authorization.',
+    'Use caveman skill to explain how the universe works.',
 ));
 
 echo $response->getMessage()->getContent();
+
+// Actual response (excerpt):
+// Cosmic history: big bang expansion. Early hot plasma cooled; atoms formed.
+// Gravity pulled gas into stars, stars forged heavier elements. Supernovae
+// spread elements; mergers build galaxies.
 ```
 
-The agent can load `caveman` and answer in its terse style, for example:
+## How Skills Work
 
-> Authentication: who you are. Authorization: what you can do.
-> Login proves identity. Permissions control access.
-
-## Skill Tools
+The agent initially sees each skill's name, description and location. When a
+skill is relevant to the task, it uses `skill` to load its instructions. If those
+instructions reference supporting files, it can read them with `skill_resource`.
+This keeps the initial context small while making the full skill available when
+needed.
 
 The toolkit registers two tools:
 
@@ -96,19 +82,56 @@ instructions and resource locations; your application controls execution.
 
 ## Multiple Skill Directories
 
-Pass storage instances in precedence order. For example, combine bundled skills
+Configure the storages before registering the toolkit on your agent. Pass them
+in precedence order. For example, combine bundled skills
 with skills installed by the CLI:
 
 ```php
-$skills = new SkillRepository(
-    new FileSystemSkillStorage(__DIR__.'/skills'),
-    new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
-);
+$toolkit = SkillToolkit::make()
+    ->fromStorage(
+        new FileSystemSkillStorage(__DIR__.'/skills'),
+        new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
+    );
 ```
 
 The first usable skill with a given declared name wins. Instructions and
 resources are read from that selected source. Restart the agent or recreate the
-storage and repository after adding skills: discovery is a snapshot.
+toolkit after adding skills to an existing directory: each storage is discovered
+on first access and its catalog is then reused.
+
+## Accessing Skills Directly
+
+Share one `SkillRepository` between the toolkit and other application features,
+for example slash commands and explicit skill invocation. `catalog()` returns a
+list of `Skill` objects; `get($name)` returns the selected skill or throws a
+`RuntimeException` when the name is unavailable.
+
+```php
+use NeuronAI\Skills\SkillRepository;
+use NeuronAI\Skills\Storage\FileSystemSkillStorage;
+use NeuronAI\Skills\Tools\SkillToolkit;
+
+$skills = new SkillRepository(
+    new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
+);
+$agent->addTool(new SkillToolkit($skills));
+
+foreach ($skills->catalog() as $skill) {
+    echo $skill->name().': '.$skill->description();
+}
+
+$skill = $skills->get('caveman');
+$frontmatter = $skill->readFrontmatter();   // Parsed YAML metadata as stdClass.
+$instructions = $skill->readInstructions(); // Body without YAML frontmatter.
+$document = $skill->readDocument();         // Complete original SKILL.md.
+$location = $skill->location();             // Host-accessible location or null.
+$resource = $skill->readResource('references/guide.md');
+```
+
+Optional and extension metadata is preserved when a skill is loaded. Fields
+such as `disable-model-invocation` and `user-invocable` are not enforced by this
+library. Applications that depend on invocation restrictions must implement
+them in their host agent.
 
 ## Custom Storage
 
@@ -127,60 +150,20 @@ unreadable resources.
 
 ## Error Handling
 
-Unusable skill documents are skipped. Inspect `$skills->diagnostics()` for
-entries containing `skill` and `message`, including loading failures, metadata
-warnings and shadowed skills. Diagnostics are not printed automatically by the
-library; the demo displays them at startup.
+Invalid or unreadable skills are skipped. Use `$skills->diagnostics()` to inspect
+loading problems and warnings.
 
-When the agent calls `skill` or `skill_resource`, expected read failures become
-messages it can read. Unexpected exceptions propagate to the application.
-Direct repository reads throw exceptions for expected failures as well.
-
-## Invocation metadata
-
-Optional and extension metadata is preserved when a skill is loaded. Fields
-such as `disable-model-invocation` and `user-invocable` are not enforced by this
-library. Applications that depend on invocation restrictions must implement
-them in their host agent.
+The tools report read failures to the agent. When accessing skills directly,
+catch `RuntimeException` for unavailable skills, documents or resources.
 
 ## Runnable Examples
 
-The [interactive demo](examples/README.md) loads two skill sources in one agent:
-
-- **Included:** `php-check` reads a reference and runs a bundled PHP script.
-- **Installed:** `caveman`, added with the Skills CLI, changes response style.
-
-You need PHP 8.1+, Composer, Node.js/npm and an OpenAI API key. The demo makes real
-API requests. From a checkout of this repository:
-
-```sh
-composer install
-cp examples/.env.example examples/.env
-```
-
-Edit `examples/.env` and set `OPENAI_API_KEY`. Then install `caveman` **from
-`examples/`** and start the agent:
-
-```sh
-cd examples
-npx skills add juliusbrussee/caveman --skill caveman --agent universal --yes
-php agent-loop.php
-```
-
-First, send:
-
-> Use php-check to check this PHP runtime and explain the result.
-
-Type `exit`, restart the script, and try:
-
-> Use caveman skill to explain the difference between authentication and authorization.
-
-The [demo guide](examples/README.md) includes setup and a sample conversation
-showing `skill`, `skill_resource` and `bash` calls.
+See the [interactive demo guide](examples/README.md) for setup instructions and
+sample conversations using skills and supporting resources.
 
 ## Contributing
 
-Report bugs and propose changes through [GitHub Issues](https://github.com/asterixcapri/neuron-skills/issues)
+Report bugs and propose changes through [GitHub Issues](https://github.com/neuron-core/neuron-skills/issues)
 and pull requests. From the repository root, run the development checks with:
 
 ```sh
