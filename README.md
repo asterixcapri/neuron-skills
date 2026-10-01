@@ -19,7 +19,7 @@ Requires PHP 8.1+ and Neuron AI ^3.4.6. For Neuron AI 4.x support, use the
 [`0.9.x` branch](https://github.com/neuron-core/neuron-skills/tree/0.9.x).
 
 ```sh
-composer require 'neuron-core/neuron-skills:^0.8'
+composer require 'neuron-core/agent-skills:^0.8'
 ```
 
 ## Quick Start
@@ -39,8 +39,8 @@ directory, replacing `your-api-key` with your OpenAI API key:
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\OpenAI\OpenAI;
-use NeuronAI\Skills\Storage\FileSystemSkillStorage;
-use NeuronAI\Skills\Tools\SkillToolkit;
+use NeuronAI\AgentSkills\Storage\FileSystemSkillStorage;
+use NeuronAI\AgentSkills\Tools\SkillToolkit;
 
 $toolkit = SkillToolkit::make()
     ->fromStorage(new FileSystemSkillStorage(__DIR__.'/.agents/skills'));
@@ -107,9 +107,9 @@ list of `Skill` objects; `get($name)` returns the selected skill or throws a
 `RuntimeException` when the name is unavailable.
 
 ```php
-use NeuronAI\Skills\SkillRepository;
-use NeuronAI\Skills\Storage\FileSystemSkillStorage;
-use NeuronAI\Skills\Tools\SkillToolkit;
+use NeuronAI\AgentSkills\SkillRepository;
+use NeuronAI\AgentSkills\Storage\FileSystemSkillStorage;
+use NeuronAI\AgentSkills\Tools\SkillToolkit;
 
 $skills = new SkillRepository(
     new FileSystemSkillStorage(__DIR__.'/.agents/skills'),

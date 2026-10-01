@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Skills\Storage;
+namespace NeuronAI\AgentSkills\Storage;
 
 use RuntimeException;
 

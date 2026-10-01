@@ -7,9 +7,9 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\OpenAI\OpenAI;
-use NeuronAI\Skills\SkillRepository;
-use NeuronAI\Skills\Storage\FileSystemSkillStorage;
-use NeuronAI\Skills\Tools\SkillToolkit;
+use NeuronAI\AgentSkills\SkillRepository;
+use NeuronAI\AgentSkills\Storage\FileSystemSkillStorage;
+use NeuronAI\AgentSkills\Tools\SkillToolkit;
 use NeuronAI\Tools\Toolkits\FileSystem\BashTool;
 use Symfony\Component\Dotenv\Dotenv;
 
