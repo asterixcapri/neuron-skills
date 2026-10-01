@@ -42,9 +42,8 @@ use NeuronAI\Providers\OpenAI\OpenAI;
 use NeuronAI\Skills\Storage\FileSystemSkillStorage;
 use NeuronAI\Skills\Tools\SkillToolkit;
 
-$toolkit = SkillToolkit::fromStorage(
-    new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
-);
+$toolkit = SkillToolkit::make()
+    ->fromStorage(new FileSystemSkillStorage(__DIR__.'/.agents/skills'));
 
 $agent = Agent::make()
     ->setThreadId('quick-start')
@@ -84,14 +83,16 @@ instructions and resource locations; your application controls execution.
 
 ## Multiple Skill Directories
 
-Pass storage instances in precedence order. For example, combine bundled skills
+Configure the storages before registering the toolkit on your agent. Pass them
+in precedence order. For example, combine bundled skills
 with skills installed by the CLI:
 
 ```php
-$toolkit = SkillToolkit::fromStorage(
-    new FileSystemSkillStorage(__DIR__.'/skills'),
-    new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
-);
+$toolkit = SkillToolkit::make()
+    ->fromStorage(
+        new FileSystemSkillStorage(__DIR__.'/skills'),
+        new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
+    );
 ```
 
 The first usable skill with a given declared name wins. Instructions and

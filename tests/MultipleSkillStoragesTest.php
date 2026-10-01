@@ -67,8 +67,8 @@ class MultipleSkillStoragesTest extends TestCase
         foreach ([
             new SkillToolkit(new SkillRepository($project)),
             new SkillToolkit(new SkillRepository($project, $user)),
-            SkillToolkit::fromStorage($project),
-            SkillToolkit::fromStorage($project, $user),
+            SkillToolkit::make()->fromStorage($project),
+            SkillToolkit::make()->fromStorage($project, $user),
         ] as $toolkit) {
             $this->assertStringContainsString('Project (location: '.$this->root.'/project/123)', $toolkit->guidelines() ?? '');
             [$activation, $resource] = $toolkit->tools();
@@ -79,6 +79,50 @@ class MultipleSkillStoragesTest extends TestCase
         }
     }
 
+    public function test_storage_configuration_extends_a_shared_repository_in_order(): void
+    {
+        $projectDocument = $this->skill('project', 'shared', 'shared', 'Project');
+        $this->skill('user', 'shared', 'shared', 'User');
+        $userDocument = $this->skill('user', 'extra', 'extra', 'Extra');
+        $repository = new SkillRepository();
+        $toolkit = SkillToolkit::make($repository);
+
+        $this->assertSame([], $repository->catalog());
+        $this->assertSame([], $repository->names());
+        $this->assertSame([], $repository->diagnostics());
+        $this->assertNull($toolkit->guidelines());
+        $this->assertCount(0, $toolkit->tools());
+
+        $repository->addStorage(new FileSystemSkillStorage($this->root.'/project'));
+        $selected = $repository->get('shared');
+        $this->assertSame($toolkit, $toolkit->fromStorage(new FileSystemSkillStorage($this->root.'/user')));
+        $this->assertSame($selected, $repository->get('shared'));
+        $this->assertSame($projectDocument, $selected->readDocument());
+        $this->assertSame($userDocument, $repository->get('extra')->readDocument());
+        $this->assertSame(['shared', 'extra'], $repository->names());
+        $this->assertStringContainsString('storage #2', $repository->diagnostics()[0]['message']);
+        $this->assertStringContainsString('storage #1', $repository->diagnostics()[0]['message']);
+        $this->assertStringContainsString('shared: Project', $toolkit->guidelines() ?? '');
+        $this->assertStringContainsString('extra: Extra', $toolkit->guidelines() ?? '');
+        $this->assertCount(2, $toolkit->tools());
+    }
+
+    public function test_repeated_storage_configuration_preserves_precedence(): void
+    {
+        $projectDocument = $this->skill('project', 'shared', 'shared', 'Project');
+        $this->skill('user', 'shared', 'shared', 'User');
+        $toolkit = SkillToolkit::make();
+
+        $this->assertNull($toolkit->guidelines());
+        $this->assertCount(0, $toolkit->tools());
+        $toolkit->fromStorage(new FileSystemSkillStorage($this->root.'/project'));
+        $toolkit->fromStorage(new FileSystemSkillStorage($this->root.'/user'));
+
+        [$activation] = $toolkit->tools();
+        $activation->setInputs(['name' => 'shared'])->execute();
+        $this->assertSame($projectDocument, $activation->getResult());
+    }
+
     public function test_precedence_keeps_documents_locations_and_resources_together(): void
     {
         $projectDocument = $this->skill('project', 'folder', 'shared', 'Project');
@@ -86,7 +130,8 @@ class MultipleSkillStoragesTest extends TestCase
         file_put_contents($this->root.'/user/folder/user-only.md', 'Must not leak');
         $project = new FileSystemSkillStorage($this->root.'/project');
         $user = new FileSystemSkillStorage($this->root.'/user');
-        $repository = new SkillRepository($project, $user);
+        $repository = new SkillRepository();
+        $repository->addStorage($project, $user);
         $this->assertSame([['name' => 'shared', 'description' => 'Project']], array_map(
             static fn (Skill $skill): array => ['name' => $skill->name(), 'description' => $skill->description()],
             $repository->catalog(),
@@ -145,7 +190,7 @@ class MultipleSkillStoragesTest extends TestCase
             new TrackedSkillStorage([]),
             new TrackedSkillStorage(['broken' => 'invalid']),
         ));
-        $this->assertSame([], $toolkit->tools());
+        $this->assertCount(0, $toolkit->tools());
         $this->assertNull($toolkit->guidelines());
     }
 

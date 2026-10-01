@@ -16,13 +16,18 @@ use function trim;
 
 class SkillToolkit extends AbstractToolkit
 {
-    public function __construct(protected SkillRepository $repository)
+    protected SkillRepository $repository;
+
+    public function __construct(?SkillRepository $repository = null)
     {
+        $this->repository = $repository ?? new SkillRepository();
     }
 
-    public static function fromStorage(SkillStorageInterface $storage, SkillStorageInterface ...$fallbackStorages): self
+    public function fromStorage(SkillStorageInterface ...$storages): static
     {
-        return new self(new SkillRepository($storage, ...$fallbackStorages));
+        $this->repository->addStorage(...$storages);
+
+        return $this;
     }
 
     public function guidelines(): ?string
