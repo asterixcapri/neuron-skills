@@ -67,8 +67,8 @@ class MultipleSkillStoragesTest extends TestCase
         foreach ([
             new SkillToolkit(new SkillRepository($project)),
             new SkillToolkit(new SkillRepository($project, $user)),
-            SkillToolkit::fromStorages($project),
-            SkillToolkit::fromStorages($project, $user),
+            SkillToolkit::fromStorage($project),
+            SkillToolkit::fromStorage($project, $user),
         ] as $toolkit) {
             $this->assertStringContainsString('Project (location: '.$this->root.'/project/123)', $toolkit->guidelines() ?? '');
             [$activation, $resource] = $toolkit->tools();

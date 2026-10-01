@@ -20,7 +20,7 @@ class SkillToolkit extends AbstractToolkit
     {
     }
 
-    public static function fromStorages(SkillStorageInterface $storage, SkillStorageInterface ...$fallbackStorages): self
+    public static function fromStorage(SkillStorageInterface $storage, SkillStorageInterface ...$fallbackStorages): self
     {
         return new self(new SkillRepository($storage, ...$fallbackStorages));
     }
