@@ -129,6 +129,7 @@ foreach ($skills->catalog() as $skill) {
 }
 
 $skill = $skills->get('caveman');
+$frontmatter = $skill->readFrontmatter();   // Parsed YAML metadata as stdClass.
 $instructions = $skill->readInstructions(); // Body without YAML frontmatter.
 $document = $skill->readDocument();         // Complete original SKILL.md.
 $location = $skill->location();             // Host-accessible location or null.

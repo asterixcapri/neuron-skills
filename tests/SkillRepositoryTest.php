@@ -6,6 +6,7 @@ namespace NeuronAI\Skills\Tests;
 
 use LogicException;
 use RuntimeException;
+use stdClass;
 use NeuronAI\Skills\Skill;
 use NeuronAI\Skills\SkillRepository;
 use NeuronAI\Skills\Storage\SkillStorageInterface;
@@ -31,6 +32,46 @@ class SkillRepositoryTest extends TestCase
             $repository->get('writing')->readInstructions(),
         );
         $this->assertNull($repository->get('writing')->location());
+    }
+
+    public function test_reads_complete_frontmatter_without_losing_custom_fields(): void
+    {
+        $storage = new InMemorySkillStorage([
+            'writing' => ['SKILL.md' => <<<'SKILL'
+                ---
+                name: writing
+                description: Write clear prose
+                license: MIT
+                user-invocable: false
+                metadata:
+                  author: Valerio
+                custom:
+                  tags: [writing, review]
+                ---
+                Write directly.
+                SKILL],
+        ]);
+        $skill = (new SkillRepository($storage))->get('writing');
+        $frontmatter = $skill->readFrontmatter();
+
+        $this->assertSame('writing', $frontmatter->name);
+        $this->assertSame('MIT', $frontmatter->license);
+        $this->assertFalse($frontmatter->{'user-invocable'});
+        $this->assertInstanceOf(stdClass::class, $frontmatter->metadata);
+        $this->assertSame('Valerio', $frontmatter->metadata->author);
+        $this->assertInstanceOf(stdClass::class, $frontmatter->custom);
+        $this->assertSame(['writing', 'review'], $frontmatter->custom->tags);
+
+        $frontmatter->metadata->author = 'Changed locally';
+        $this->assertSame('Valerio', $skill->readFrontmatter()->metadata->author);
+
+        $storage->files['writing']['SKILL.md'] = "---\nname: writing\ndescription: Updated\nlicense: Apache-2.0\n---\nBody";
+        $this->assertSame('Apache-2.0', $skill->readFrontmatter()->license);
+
+        $storage->files['writing']['SKILL.md'] = 'Invalid manifest';
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Skill "writing" has invalid frontmatter.');
+        $skill->readFrontmatter();
     }
 
     public function test_get_rejects_an_unknown_skill(): void
