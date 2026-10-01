@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Skills;
+namespace NeuronAI\AgentSkills;
 
 use Normalizer;
 use stdClass;

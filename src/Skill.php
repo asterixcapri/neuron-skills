@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Skills;
+namespace NeuronAI\AgentSkills;
 
-use NeuronAI\Skills\Storage\SkillStorageInterface;
+use NeuronAI\AgentSkills\Storage\SkillStorageInterface;
 use RuntimeException;
 use stdClass;
 
