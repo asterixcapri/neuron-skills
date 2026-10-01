@@ -63,7 +63,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Skills\Storage\FileSystemSkillStorage;
 use NeuronAI\Skills\Tools\SkillToolkit;
 
-$toolkit = SkillToolkit::fromStorages(
+$toolkit = SkillToolkit::fromStorage(
     new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
 );
 
@@ -119,7 +119,7 @@ unavailable contents or invalid frontmatter.
 If only the toolkit needs the skills, construct it directly from storages:
 
 ```php
-$toolkit = SkillToolkit::fromStorages(
+$toolkit = SkillToolkit::fromStorage(
     new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
 );
 ```
