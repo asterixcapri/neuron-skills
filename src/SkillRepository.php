@@ -26,10 +26,8 @@ class SkillRepository
     /** @var list<array{skill: string, message: string}> */
     protected array $diagnostics = [];
 
-    /** @var list<SkillStorageInterface> */
-    private array $storages = [];
-
-    private int $nextStorageIndex = 0;
+    /** @var array<int, SkillStorageInterface> */
+    private array $pendingStorages = [];
 
     /** @return list<array{skill: string, message: string}> */
     public function diagnostics(): array
@@ -47,7 +45,7 @@ class SkillRepository
     public function addStorage(SkillStorageInterface ...$storages): void
     {
         foreach ($storages as $storage) {
-            $this->storages[] = $storage;
+            $this->pendingStorages[] = $storage;
         }
     }
 
@@ -78,11 +76,7 @@ class SkillRepository
     /** @return array<string, Skill> */
     private function resolveCatalog(): array
     {
-        foreach ($this->storages as $index => $storage) {
-            if ($index < $this->nextStorageIndex) {
-                continue;
-            }
-
+        foreach ($this->pendingStorages as $index => $storage) {
             $catalog = $this->catalog;
             $diagnostics = $this->diagnostics;
 
@@ -94,7 +88,7 @@ class SkillRepository
                 throw $exception;
             }
 
-            $this->nextStorageIndex = $index + 1;
+            unset($this->pendingStorages[$index]);
         }
 
         return $this->catalog;
