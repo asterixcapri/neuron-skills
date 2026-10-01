@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace NeuronAI\Skills;
 
 use RuntimeException;
+use Throwable;
 use NeuronAI\Skills\Storage\SkillStorageInterface;
 
-use function array_column;
 use function array_key_exists;
+use function array_map;
+use function array_values;
 use function sort;
 use function sprintf;
 
@@ -18,99 +20,81 @@ class SkillRepository
 {
     protected const MANIFEST = 'SKILL.md';
 
-    /** @var array<string, array{description: string, storage: SkillStorageInterface, identifier: string, ordinal: int}> */
-    protected array $skills = [];
+    /** @var array<string, Skill> */
+    protected array $catalog = [];
 
     /** @var list<array{skill: string, message: string}> */
     protected array $diagnostics = [];
 
+    /** @var array<int, SkillStorageInterface> */
+    private array $pendingStorages = [];
+
     /** @return list<array{skill: string, message: string}> */
     public function diagnostics(): array
     {
+        $this->resolveCatalog();
+
         return $this->diagnostics;
     }
 
-    public function __construct(SkillStorageInterface $storage, SkillStorageInterface ...$fallbackStorages)
+    public function __construct(SkillStorageInterface ...$storages)
     {
-        foreach ([$storage, ...$fallbackStorages] as $index => $source) {
-            $this->buildCatalog($source, $index + 1);
+        $this->addStorage(...$storages);
+    }
+
+    public function addStorage(SkillStorageInterface ...$storages): void
+    {
+        foreach ($storages as $storage) {
+            $this->pendingStorages[] = $storage;
         }
     }
 
-    /** @return array<int, array{name: string, description: string}> */
+    /** @return list<Skill> */
     public function catalog(): array
     {
-        $catalog = [];
-        foreach ($this->skills as $name => $skill) {
-            $catalog[] = ['name' => (string) $name, 'description' => $skill['description']];
-        }
-
-        return $catalog;
+        return array_values($this->resolveCatalog());
     }
 
     /** @return list<string> */
     public function names(): array
     {
-        return array_column($this->catalog(), 'name');
+        return array_map(static fn (Skill $skill): string => $skill->name(), $this->catalog());
     }
 
     /** @throws RuntimeException */
-    public function readInstructions(string $name): string
+    public function get(string $name): Skill
     {
-        ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
-        $contents = $storage->read($identifier, self::MANIFEST);
-        $document = (new SkillDocumentParser())->parse($contents, $identifier)['document'];
+        $catalog = $this->resolveCatalog();
 
-        if ($document === null) {
-            throw new RuntimeException(sprintf('Skill "%s" has invalid frontmatter.', $name));
-        }
-
-        return trim($document['body']);
-    }
-
-    /** @throws RuntimeException */
-    public function readDocument(string $name): string
-    {
-        ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
-        $contents = $storage->read($identifier, self::MANIFEST);
-
-        $document = (new SkillDocumentParser())->parse($contents, $identifier)['document'];
-        if ($document === null) {
-            throw new RuntimeException(sprintf('Skill "%s" has invalid frontmatter.', $name));
-        }
-
-        return $contents;
-    }
-
-    /** @throws RuntimeException */
-    public function location(string $name): ?string
-    {
-        ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
-        return $storage->location($identifier);
-    }
-
-    /** @throws RuntimeException */
-    public function readResource(string $name, string $path): string
-    {
-        ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
-        if ($path === '') {
-            throw new RuntimeException('Resource path "" is invalid.');
-        }
-
-        return $storage->read($identifier, $path);
-    }
-
-    /** @return array{description: string, storage: SkillStorageInterface, identifier: string, ordinal: int} */
-    private function getSkill(string $name): array
-    {
-        if (!array_key_exists($name, $this->skills)) {
+        if (!array_key_exists($name, $catalog)) {
             throw new RuntimeException(sprintf('Skill "%s" is not available.', $name));
         }
 
-        return $this->skills[$name];
+        return $catalog[$name];
     }
 
-    protected function buildCatalog(SkillStorageInterface $storage, int $ordinal): void
+    /** @return array<string, Skill> */
+    private function resolveCatalog(): array
+    {
+        foreach ($this->pendingStorages as $index => $storage) {
+            $catalog = $this->catalog;
+            $diagnostics = $this->diagnostics;
+
+            try {
+                $this->buildCatalog($storage);
+            } catch (Throwable $exception) {
+                $this->catalog = $catalog;
+                $this->diagnostics = $diagnostics;
+                throw $exception;
+            }
+
+            unset($this->pendingStorages[$index]);
+        }
+
+        return $this->catalog;
+    }
+
+    protected function buildCatalog(SkillStorageInterface $storage): void
     {
         $skills = $storage->list();
         sort($skills, SORT_STRING);
@@ -132,24 +116,14 @@ class SkillRepository
                 continue;
             }
             $name = $document['name'];
-            if (array_key_exists($name, $this->skills)) {
-                $winner = $this->skills[$name];
+            if (array_key_exists($name, $this->catalog)) {
                 $this->diagnostics[] = ['skill' => $skill, 'message' => sprintf(
-                    'Skill "%s" from storage #%d candidate "%s" is shadowed by storage #%d candidate "%s".',
+                    'Skill "%s" is shadowed by an earlier candidate with the same name.',
                     $name,
-                    $ordinal,
-                    $skill,
-                    $winner['ordinal'],
-                    $winner['identifier'],
                 )];
                 continue;
             }
-            $this->skills[$name] = [
-                'description' => $document['description'],
-                'storage' => $storage,
-                'identifier' => $skill,
-                'ordinal' => $ordinal,
-            ];
+            $this->catalog[$name] = new Skill($name, $document['description'], $storage, $skill);
         }
     }
 }

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Skills\Tools;
 
+use NeuronAI\Skills\Skill;
 use NeuronAI\Skills\SkillRepository;
+use NeuronAI\Skills\Storage\SkillStorageInterface;
 use NeuronAI\Tools\Toolkits\AbstractToolkit;
 
 use function array_map;
@@ -14,8 +16,18 @@ use function trim;
 
 class SkillToolkit extends AbstractToolkit
 {
-    public function __construct(protected SkillRepository $repository)
+    protected SkillRepository $repository;
+
+    public function __construct(?SkillRepository $repository = null)
     {
+        $this->repository = $repository ?? new SkillRepository();
+    }
+
+    public function fromStorage(SkillStorageInterface ...$storages): static
+    {
+        $this->repository->addStorage(...$storages);
+
+        return $this;
     }
 
     public function guidelines(): ?string
@@ -37,14 +49,14 @@ class SkillToolkit extends AbstractToolkit
             .' If a required skill or resource cannot be read, say so.';
     }
 
-    /** @param array<int, array{name: string, description: string}> $catalog */
+    /** @param list<Skill> $catalog */
     private function formatCatalog(array $catalog): string
     {
-        $entries = array_map(function (array $skill): string {
-            $description = preg_replace('/\s+/u', ' ', $skill['description']) ?? $skill['description'];
-            $location = $this->repository->location($skill['name']);
+        $entries = array_map(static function (Skill $skill): string {
+            $description = preg_replace('/\s+/u', ' ', $skill->description()) ?? $skill->description();
+            $location = $skill->location();
 
-            return '- '.$skill['name'].': '.trim($description).' (location: '.($location ?? 'unavailable').')';
+            return '- '.$skill->name().': '.trim($description).' (location: '.($location ?? 'unavailable').')';
         }, $catalog);
 
         return implode("\n", $entries);
