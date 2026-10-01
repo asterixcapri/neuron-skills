@@ -97,7 +97,7 @@ Pass storage instances in precedence order. For example, combine bundled skills
 with skills installed by the CLI:
 
 ```php
-$skills = new SkillRepository(
+$toolkit = SkillToolkit::fromStorage(
     new FileSystemSkillStorage(__DIR__.'/skills'),
     new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
 );
@@ -105,7 +105,7 @@ $skills = new SkillRepository(
 
 The first usable skill with a given declared name wins. Instructions and
 resources are read from that selected source. Restart the agent or recreate the
-storage and repository after adding skills: discovery is a snapshot.
+toolkit after adding skills: discovery is a snapshot.
 
 ## Using Skills in Your Application
 
