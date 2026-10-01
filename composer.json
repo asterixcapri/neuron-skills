@@ -1,5 +1,5 @@
 {
-    "name": "neuron-core/neuron-skills",
+    "name": "neuron-core/agent-skills",
     "description": "Agent Skills toolkit with pluggable storage for Neuron AI.",
     "type": "library",
     "license": "MIT",
@@ -17,12 +17,12 @@
     },
     "autoload": {
         "psr-4": {
-            "NeuronAI\\Skills\\": "src/"
+            "NeuronAI\\AgentSkills\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "NeuronAI\\Skills\\Tests\\": "tests/"
+            "NeuronAI\\AgentSkills\\Tests\\": "tests/"
         }
     },
     "scripts": {
