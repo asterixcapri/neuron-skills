@@ -1,6 +1,6 @@
 # Neuron AI Skills
 
-[![Tests](https://github.com/asterixcapri/neuron-skills/actions/workflows/tests.yml/badge.svg)](https://github.com/asterixcapri/neuron-skills/actions/workflows/tests.yml)
+[![Tests](https://github.com/neuron-core/neuron-skills/actions/workflows/tests.yml/badge.svg)](https://github.com/neuron-core/neuron-skills/actions/workflows/tests.yml)
 [![PHP](https://img.shields.io/badge/PHP-8.1%2B-777BB4?logo=php&logoColor=white)](composer.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -30,10 +30,10 @@ multiple skill directories in the same agent.
 ## Installation
 
 Requires PHP 8.1+ and Neuron AI ^4.0. For Neuron AI 3.x support, use the
-[`0.8.x` branch](https://github.com/asterixcapri/neuron-skills/tree/0.8.x).
+[`0.8.x` branch](https://github.com/neuron-core/neuron-skills/tree/0.8.x).
 
 ```sh
-composer require asterixcapri/neuron-skills
+composer require neuron-core/neuron-skills
 ```
 
 To try the standalone demo, follow [Runnable Examples](#runnable-examples).
@@ -74,51 +74,6 @@ The agent can load `caveman` and answer in its terse style, for example:
 > Authentication: who you are. Authorization: what you can do.
 > Login proves identity. Permissions control access.
 
-## Using Skills in Your Application
-
-Share one `SkillRepository` between the toolkit and other application features,
-for example slash commands and explicit skill invocation. `catalog()` returns a
-list of `Skill` objects; `get($name)` returns the selected skill or throws a
-`RuntimeException` when the name is unavailable.
-
-```php
-use NeuronAI\Skills\SkillRepository;
-use NeuronAI\Skills\Storage\FileSystemSkillStorage;
-use NeuronAI\Skills\Tools\SkillToolkit;
-
-$skills = new SkillRepository(
-    new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
-);
-$agent->addTool(new SkillToolkit($skills));
-
-foreach ($skills->catalog() as $skill) {
-    echo $skill->name().': '.$skill->description();
-}
-
-$skill = $skills->get('caveman');
-$instructions = $skill->readInstructions(); // Body without YAML frontmatter.
-$document = $skill->readDocument();         // Complete original SKILL.md.
-$location = $skill->location();             // Host-accessible location or null.
-$resource = $skill->readResource('references/guide.md');
-```
-
-Names and descriptions are captured during discovery. Documents, locations and
-resources are read on demand from the selected storage. `SkillDocumentParser`
-remains an internal parsing detail. Reads can throw `RuntimeException` for
-unavailable contents or invalid frontmatter.
-
-If only the toolkit needs the skills, construct it directly from storages:
-
-```php
-$toolkit = SkillToolkit::fromStorage(
-    new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
-);
-```
-
-The repository methods `readInstructions($name)`, `readDocument($name)`,
-`location($name)` and `readResource($name, $path)` have moved to `Skill`.
-Catalog entries now expose methods instead of array keys.
-
 ## Skill Tools
 
 The toolkit registers two tools:
@@ -148,6 +103,34 @@ The first usable skill with a given declared name wins. Instructions and
 resources are read from that selected source. Restart the agent or recreate the
 storage and repository after adding skills: discovery is a snapshot.
 
+## Using Skills in Your Application
+
+Share one `SkillRepository` between the toolkit and other application features,
+for example slash commands and explicit skill invocation. `catalog()` returns a
+list of `Skill` objects; `get($name)` returns the selected skill or throws a
+`RuntimeException` when the name is unavailable.
+
+```php
+use NeuronAI\Skills\SkillRepository;
+use NeuronAI\Skills\Storage\FileSystemSkillStorage;
+use NeuronAI\Skills\Tools\SkillToolkit;
+
+$skills = new SkillRepository(
+    new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
+);
+$agent->addTool(new SkillToolkit($skills));
+
+foreach ($skills->catalog() as $skill) {
+    echo $skill->name().': '.$skill->description();
+}
+
+$skill = $skills->get('caveman');
+$instructions = $skill->readInstructions(); // Body without YAML frontmatter.
+$document = $skill->readDocument();         // Complete original SKILL.md.
+$location = $skill->location();             // Host-accessible location or null.
+$resource = $skill->readResource('references/guide.md');
+```
+
 ## Custom Storage
 
 Implement [`SkillStorageInterface`](src/Storage/SkillStorageInterface.php) to
@@ -165,16 +148,11 @@ unreadable resources.
 
 ## Error Handling
 
-Unusable skill documents are skipped. Inspect `$skills->diagnostics()` for
-entries containing `skill` and `message`, including loading failures, metadata
-warnings and shadowed skills. Diagnostics are not printed automatically by the
-library; the demo displays them at startup.
+Invalid or unreadable skills are skipped. Use `$skills->diagnostics()` to inspect
+loading problems and warnings.
 
-When the agent calls `skill` or `skill_resource`, expected read failures become
-messages it can read. Unexpected exceptions propagate to the application.
-Direct repository reads throw exceptions for expected failures as well.
-Neuron AI validates tool arguments before execution; a skill name outside the
-catalog produces a `ToolOutput` error that the agent can read.
+The tools report read failures to the agent. When accessing skills directly,
+catch `RuntimeException` for unavailable skills, documents or resources.
 
 ## Invocation metadata
 
@@ -185,42 +163,12 @@ them in their host agent.
 
 ## Runnable Examples
 
-The [interactive demo](examples/README.md) loads two skill sources in one agent:
-
-- **Included:** `php-check` reads a reference and runs a bundled PHP script.
-- **Installed:** `caveman`, added with the Skills CLI, changes response style.
-
-You need PHP 8.1+, Composer, Node.js/npm and an OpenAI API key. The demo makes real
-API requests. From a checkout of this repository:
-
-```sh
-composer install
-cp examples/.env.example examples/.env
-```
-
-Edit `examples/.env` and set `OPENAI_API_KEY`. Then install `caveman` **from
-`examples/`** and start the agent:
-
-```sh
-cd examples
-npx skills add juliusbrussee/caveman --skill caveman --agent universal --yes
-php agent-loop.php
-```
-
-First, send:
-
-> Use php-check to check this PHP runtime and explain the result.
-
-Type `exit`, restart the script, and try:
-
-> Use caveman skill to explain the difference between authentication and authorization.
-
-The [demo guide](examples/README.md) includes setup and a sample conversation
-showing `skill`, `skill_resource` and `bash` calls.
+See the [interactive demo guide](examples/README.md) for setup instructions and
+sample conversations using skills and supporting resources.
 
 ## Contributing
 
-Report bugs and propose changes through [GitHub Issues](https://github.com/asterixcapri/neuron-skills/issues)
+Report bugs and propose changes through [GitHub Issues](https://github.com/neuron-core/neuron-skills/issues)
 and pull requests. From the repository root, run the development checks with:
 
 ```sh
