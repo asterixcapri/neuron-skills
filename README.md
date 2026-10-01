@@ -31,20 +31,12 @@ multiple skill directories in the same agent.
 
 Requires PHP 8.1+ and Neuron AI ^4.0. For Neuron AI 3.x support, use the
 [`0.8.x` branch](https://github.com/asterixcapri/neuron-skills/tree/0.8.x).
-There is no tagged release yet; install from a local checkout until the first
-release is available.
-
-From your application's root, clone this repository alongside it and register
-it as a Composer path repository:
 
 ```sh
-git clone https://github.com/asterixcapri/neuron-skills.git ../neuron-skills
-composer config repositories.neuron-skills path ../neuron-skills
-composer require 'asterixcapri/neuron-skills:@dev'
+composer require asterixcapri/neuron-skills
 ```
 
-Adjust the path if your checkout is elsewhere. To try the standalone demo,
-follow [Runnable Examples](#runnable-examples) instead.
+To try the standalone demo, follow [Runnable Examples](#runnable-examples).
 
 ## Quick Start
 
