@@ -60,17 +60,16 @@ configured Neuron AI agent:
 
 ```php
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Skills\SkillRepository;
 use NeuronAI\Skills\Storage\FileSystemSkillStorage;
 use NeuronAI\Skills\Tools\SkillToolkit;
 
-$skills = new SkillRepository(
+$toolkit = SkillToolkit::fromStorages(
     new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
 );
 
 // $agent already has your AI provider and a thread ID configured.
 // For a new conversation: $agent->setThreadId(bin2hex(random_bytes(16)));
-$agent->addTool(new SkillToolkit($skills));
+$agent->addTool($toolkit);
 
 $response = $agent->chat(new UserMessage(
     'Use caveman skill to explain the difference between authentication and authorization.',
@@ -92,6 +91,15 @@ list of `Skill` objects; `get($name)` returns the selected skill or throws a
 `RuntimeException` when the name is unavailable.
 
 ```php
+use NeuronAI\Skills\SkillRepository;
+use NeuronAI\Skills\Storage\FileSystemSkillStorage;
+use NeuronAI\Skills\Tools\SkillToolkit;
+
+$skills = new SkillRepository(
+    new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
+);
+$agent->addTool(new SkillToolkit($skills));
+
 foreach ($skills->catalog() as $skill) {
     echo $skill->name().': '.$skill->description();
 }
