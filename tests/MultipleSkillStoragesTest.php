@@ -11,6 +11,7 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use RuntimeException;
+use NeuronAI\Skills\Skill;
 use NeuronAI\Skills\SkillRepository;
 use NeuronAI\Skills\Tools\SkillToolkit;
 use NeuronAI\Skills\Storage\FileSystemSkillStorage;
@@ -66,6 +67,8 @@ class MultipleSkillStoragesTest extends TestCase
         foreach ([
             new SkillToolkit(new SkillRepository($project)),
             new SkillToolkit(new SkillRepository($project, $user)),
+            SkillToolkit::fromStorages($project),
+            SkillToolkit::fromStorages($project, $user),
         ] as $toolkit) {
             $this->assertStringContainsString('Project (location: '.$this->root.'/project/123)', $toolkit->guidelines() ?? '');
             [$activation, $resource] = $toolkit->tools();
@@ -84,18 +87,21 @@ class MultipleSkillStoragesTest extends TestCase
         $project = new FileSystemSkillStorage($this->root.'/project');
         $user = new FileSystemSkillStorage($this->root.'/user');
         $repository = new SkillRepository($project, $user);
-        $this->assertSame([['name' => 'shared', 'description' => 'Project']], $repository->catalog());
-        $this->assertSame($projectDocument, $repository->readDocument('shared'));
-        $this->assertSame($this->root.'/project/folder', $repository->location('shared'));
-        $this->assertSame('project guide for shared', $repository->readResource('shared', 'guide.md'));
+        $this->assertSame([['name' => 'shared', 'description' => 'Project']], array_map(
+            static fn (Skill $skill): array => ['name' => $skill->name(), 'description' => $skill->description()],
+            $repository->catalog(),
+        ));
+        $this->assertSame($projectDocument, $repository->get('shared')->readDocument());
+        $this->assertSame($this->root.'/project/folder', $repository->get('shared')->location());
+        $this->assertSame('project guide for shared', $repository->get('shared')->readResource('guide.md'));
         $messages = array_column($repository->diagnostics(), 'message');
         $this->assertContains('Skill "shared" from storage #2 candidate "folder" is shadowed by storage #1 candidate "folder".', $messages);
         $reversed = new SkillRepository($user, $project);
-        $this->assertSame($userDocument, $reversed->readDocument('shared'));
-        $this->assertSame($this->root.'/user/folder', $reversed->location('shared'));
-        $this->assertSame('user guide for shared', $reversed->readResource('shared', 'guide.md'));
+        $this->assertSame($userDocument, $reversed->get('shared')->readDocument());
+        $this->assertSame($this->root.'/user/folder', $reversed->get('shared')->location());
+        $this->assertSame('user guide for shared', $reversed->get('shared')->readResource('guide.md'));
         $this->expectException(RuntimeException::class);
-        $repository->readResource('shared', 'user-only.md');
+        $repository->get('shared')->readResource('user-only.md');
     }
 
     public function test_unusable_and_unreadable_candidates_allow_fallback_while_warnings_keep_precedence(): void

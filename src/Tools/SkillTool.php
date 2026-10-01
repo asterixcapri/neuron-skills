@@ -39,7 +39,7 @@ class SkillTool extends Tool
     public function __invoke(string $name): string
     {
         try {
-            return $this->repository->readDocument($name);
+            return $this->repository->get($name)->readDocument();
         } catch (RuntimeException $exception) {
             return $exception->getMessage();
         }

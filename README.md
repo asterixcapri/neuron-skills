@@ -84,6 +84,42 @@ The agent can load `caveman` and answer in its terse style, for example:
 > Authentication: who you are. Authorization: what you can do.
 > Login proves identity. Permissions control access.
 
+## Using Skills in Your Application
+
+Share one `SkillRepository` between the toolkit and other application features,
+for example slash commands and explicit skill invocation. `catalog()` returns a
+list of `Skill` objects; `get($name)` returns the selected skill or throws a
+`RuntimeException` when the name is unavailable.
+
+```php
+foreach ($skills->catalog() as $skill) {
+    echo $skill->name().': '.$skill->description();
+}
+
+$skill = $skills->get('caveman');
+$instructions = $skill->readInstructions(); // Body without YAML frontmatter.
+$document = $skill->readDocument();         // Complete original SKILL.md.
+$location = $skill->location();             // Host-accessible location or null.
+$resource = $skill->readResource('references/guide.md');
+```
+
+Names and descriptions are captured during discovery. Documents, locations and
+resources are read on demand from the selected storage. `SkillDocumentParser`
+remains an internal parsing detail. Reads can throw `RuntimeException` for
+unavailable contents or invalid frontmatter.
+
+If only the toolkit needs the skills, construct it directly from storages:
+
+```php
+$toolkit = SkillToolkit::fromStorages(
+    new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
+);
+```
+
+The repository methods `readInstructions($name)`, `readDocument($name)`,
+`location($name)` and `readResource($name, $path)` have moved to `Skill`.
+Catalog entries now expose methods instead of array keys.
+
 ## Skill Tools
 
 The toolkit registers two tools:
