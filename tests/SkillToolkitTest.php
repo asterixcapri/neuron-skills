@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Skills\Tests;
+namespace NeuronAI\AgentSkills\Tests;
 
 use LogicException;
 use RuntimeException;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Skills\SkillRepository;
+use NeuronAI\AgentSkills\SkillRepository;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -16,11 +16,11 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Skills\Tools\SkillResourceTool;
-use NeuronAI\Skills\Tools\SkillToolkit;
-use NeuronAI\Skills\Tools\SkillTool;
-use NeuronAI\Skills\Storage\FileSystemSkillStorage;
-use NeuronAI\Skills\Storage\SkillStorageInterface;
+use NeuronAI\AgentSkills\Tools\SkillResourceTool;
+use NeuronAI\AgentSkills\Tools\SkillToolkit;
+use NeuronAI\AgentSkills\Tools\SkillTool;
+use NeuronAI\AgentSkills\Storage\FileSystemSkillStorage;
+use NeuronAI\AgentSkills\Storage\SkillStorageInterface;
 use PHPUnit\Framework\TestCase;
 
 use function array_keys;

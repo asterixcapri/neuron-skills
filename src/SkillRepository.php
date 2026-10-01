@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Skills;
+namespace NeuronAI\AgentSkills;
 
 use RuntimeException;
 use Throwable;
-use NeuronAI\Skills\Storage\SkillStorageInterface;
+use NeuronAI\AgentSkills\Storage\SkillStorageInterface;
 
 use function array_key_exists;
 use function array_map;

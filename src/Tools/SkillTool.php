@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Skills\Tools;
+namespace NeuronAI\AgentSkills\Tools;
 
 use RuntimeException;
-use NeuronAI\Skills\SkillRepository;
+use NeuronAI\AgentSkills\SkillRepository;
 use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Skills\Tests;
+namespace NeuronAI\AgentSkills\Tests;
 
-use NeuronAI\Skills\SkillDocumentParser;
+use NeuronAI\AgentSkills\SkillDocumentParser;
 use PHPUnit\Framework\TestCase;
 
 class SkillDocumentParserTest extends TestCase
