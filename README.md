@@ -97,7 +97,8 @@ $toolkit = SkillToolkit::make()
 
 The first usable skill with a given declared name wins. Instructions and
 resources are read from that selected source. Restart the agent or recreate the
-toolkit after adding skills: discovery is a snapshot.
+toolkit after adding skills to an existing directory: each storage is discovered
+on first access and its catalog is then reused.
 
 ## Accessing Skills Directly
 

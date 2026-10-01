@@ -19,6 +19,88 @@ use function array_keys;
 
 class SkillRepositoryTest extends TestCase
 {
+    /** @dataProvider discoveryAccessors */
+    public function test_discovery_is_deferred_until_first_access_and_cached(string $accessor): void
+    {
+        $storage = new InMemorySkillStorage([]);
+        $repository = new SkillRepository($storage);
+        $this->assertSame(0, $storage->listCalls);
+        $this->assertCount(0, $storage->reads);
+        $storage->files['writing'] = ['SKILL.md' => "---\nname: writing\ndescription: Writing\n---\nBody"];
+
+        if ($accessor === 'get') {
+            $repository->get('writing');
+        } else {
+            $repository->{$accessor}();
+        }
+
+        $selected = $repository->get('writing');
+        $repository->catalog();
+        $repository->names();
+        $repository->diagnostics();
+        $this->assertSame(1, $storage->listCalls);
+        $this->assertSame([['writing', 'SKILL.md']], $storage->reads);
+
+        $later = new InMemorySkillStorage([
+            'writing' => ['SKILL.md' => "---\nname: writing\ndescription: Shadowed\n---\nOther"],
+            'extra' => ['SKILL.md' => "---\nname: extra\ndescription: Extra\n---\nExtra"],
+        ]);
+        $repository->addStorage($later);
+        $this->assertSame(0, $later->listCalls);
+        $this->assertCount(0, $later->reads);
+        $this->assertSame(['writing', 'extra'], $repository->names());
+        $this->assertSame($selected, $repository->get('writing'));
+        $this->assertSame(1, $storage->listCalls);
+        $this->assertSame([['writing', 'SKILL.md']], $storage->reads);
+        $this->assertSame(1, $later->listCalls);
+        $this->assertCount(2, $later->reads);
+        $this->assertCount(1, $repository->diagnostics());
+    }
+
+    /** @return array<string, array{string}> */
+    public static function discoveryAccessors(): array
+    {
+        return [
+            'catalog' => ['catalog'],
+            'names' => ['names'],
+            'get' => ['get'],
+            'diagnostics' => ['diagnostics'],
+        ];
+    }
+
+    public function test_failed_discovery_can_be_retried_without_partial_catalog_or_duplicate_diagnostics(): void
+    {
+        $storage = new class ([]) extends InMemorySkillStorage {
+            public bool $broken = true;
+
+            public function read(string $skill, string $path): string
+            {
+                if ($skill === 'z-broken' && $this->broken) {
+                    throw new LogicException('Temporary storage failure.');
+                }
+
+                return parent::read($skill, $path);
+            }
+        };
+        $storage->files = [
+            'a-source' => ['SKILL.md' => "---\nname: first\ndescription: First\n---\nBody"],
+            'z-broken' => ['SKILL.md' => "---\nname: second\ndescription: Second\n---\nBody"],
+        ];
+        $repository = new SkillRepository($storage);
+        try {
+            $repository->catalog();
+            $this->fail('Expected discovery to fail.');
+        } catch (LogicException $exception) {
+            $this->assertSame('Temporary storage failure.', $exception->getMessage());
+        }
+
+        $storage->broken = false;
+        $this->assertSame(['first', 'second'], $repository->names());
+        $this->assertCount(2, $repository->diagnostics());
+        $repository->catalog();
+        $this->assertSame(2, $storage->listCalls);
+    }
+
     public function test_reads_normalized_instructions_and_location(): void
     {
         $repository = new SkillRepository(new InMemorySkillStorage([
@@ -165,6 +247,7 @@ class SkillRepositoryTest extends TestCase
             ],
         ]);
         $repository = new SkillRepository($storage);
+        $repository->catalog();
         $storage->files['writing']['SKILL.md'] = "---\nname: writing\ndescription: Changed description\n---\nChanged body.";
         $storage->files['writing']['guide.md'] = 'Changed guide.';
         $storage->files['added']['SKILL.md'] = "---\nname: added\ndescription: Added later\n---\nAdded.";
@@ -204,6 +287,7 @@ class SkillRepositoryTest extends TestCase
             'writing' => ['SKILL.md' => "---\nname: writing\ndescription: Writing\n---\nInstructions."],
         ]);
         $repository = new SkillRepository($storage);
+        $repository->catalog();
         $storage->failures['writing'][$path] = 'Read failed.';
 
         $this->expectException(RuntimeException::class);
@@ -231,6 +315,7 @@ class SkillRepositoryTest extends TestCase
             'writing' => ['SKILL.md' => "---\nname: writing\ndescription: Writing\n---\nInstructions."],
         ]);
         $repository = new SkillRepository($storage);
+        $repository->catalog();
         $storage->files['writing']['SKILL.md'] = 'Invalid document.';
 
         $this->expectException(RuntimeException::class);
@@ -281,7 +366,7 @@ class SkillRepositoryTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Storage failed unexpectedly.');
 
-        new SkillRepository($storage);
+        (new SkillRepository($storage))->catalog();
     }
 }
 
@@ -295,6 +380,11 @@ class InMemorySkillStorage implements SkillStorageInterface
     /** @var array<string, array<string, string>> */
     public array $failures = [];
 
+    public int $listCalls = 0;
+
+    /** @var list<array{string, string}> */
+    public array $reads = [];
+
     public function location(string $skill): ?string
     {
         return null;
@@ -302,11 +392,13 @@ class InMemorySkillStorage implements SkillStorageInterface
 
     public function list(): array
     {
+        ++$this->listCalls;
         return array_keys($this->files);
     }
 
     public function read(string $skill, string $path): string
     {
+        $this->reads[] = [$skill, $path];
         if (isset($this->failures[$skill][$path])) {
             throw new RuntimeException($this->failures[$skill][$path]);
         }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Skills;
 
 use RuntimeException;
+use Throwable;
 use NeuronAI\Skills\Storage\SkillStorageInterface;
 
 use function array_key_exists;
@@ -19,17 +20,22 @@ class SkillRepository
 {
     protected const MANIFEST = 'SKILL.md';
 
-    /** @var array<string, array{skill: Skill, identifier: string, ordinal: int}> */
-    protected array $skills = [];
+    /** @var array<string, Skill> */
+    protected array $catalog = [];
 
     /** @var list<array{skill: string, message: string}> */
     protected array $diagnostics = [];
 
-    private int $storageCount = 0;
+    /** @var list<SkillStorageInterface> */
+    private array $storages = [];
+
+    private int $nextStorageIndex = 0;
 
     /** @return list<array{skill: string, message: string}> */
     public function diagnostics(): array
     {
+        $this->resolveCatalog();
+
         return $this->diagnostics;
     }
 
@@ -41,14 +47,14 @@ class SkillRepository
     public function addStorage(SkillStorageInterface ...$storages): void
     {
         foreach ($storages as $storage) {
-            $this->buildCatalog($storage, ++$this->storageCount);
+            $this->storages[] = $storage;
         }
     }
 
     /** @return list<Skill> */
     public function catalog(): array
     {
-        return array_values(array_map(static fn (array $entry): Skill => $entry['skill'], $this->skills));
+        return array_values($this->resolveCatalog());
     }
 
     /** @return list<string> */
@@ -60,14 +66,41 @@ class SkillRepository
     /** @throws RuntimeException */
     public function get(string $name): Skill
     {
-        if (!array_key_exists($name, $this->skills)) {
+        $catalog = $this->resolveCatalog();
+
+        if (!array_key_exists($name, $catalog)) {
             throw new RuntimeException(sprintf('Skill "%s" is not available.', $name));
         }
 
-        return $this->skills[$name]['skill'];
+        return $catalog[$name];
     }
 
-    protected function buildCatalog(SkillStorageInterface $storage, int $ordinal): void
+    /** @return array<string, Skill> */
+    private function resolveCatalog(): array
+    {
+        foreach ($this->storages as $index => $storage) {
+            if ($index < $this->nextStorageIndex) {
+                continue;
+            }
+
+            $catalog = $this->catalog;
+            $diagnostics = $this->diagnostics;
+
+            try {
+                $this->buildCatalog($storage);
+            } catch (Throwable $exception) {
+                $this->catalog = $catalog;
+                $this->diagnostics = $diagnostics;
+                throw $exception;
+            }
+
+            $this->nextStorageIndex = $index + 1;
+        }
+
+        return $this->catalog;
+    }
+
+    protected function buildCatalog(SkillStorageInterface $storage): void
     {
         $skills = $storage->list();
         sort($skills, SORT_STRING);
@@ -89,23 +122,14 @@ class SkillRepository
                 continue;
             }
             $name = $document['name'];
-            if (array_key_exists($name, $this->skills)) {
-                $winner = $this->skills[$name];
+            if (array_key_exists($name, $this->catalog)) {
                 $this->diagnostics[] = ['skill' => $skill, 'message' => sprintf(
-                    'Skill "%s" from storage #%d candidate "%s" is shadowed by storage #%d candidate "%s".',
+                    'Skill "%s" is shadowed by an earlier candidate with the same name.',
                     $name,
-                    $ordinal,
-                    $skill,
-                    $winner['ordinal'],
-                    $winner['identifier'],
                 )];
                 continue;
             }
-            $this->skills[$name] = [
-                'skill' => new Skill($name, $document['description'], $storage, $skill),
-                'identifier' => $skill,
-                'ordinal' => $ordinal,
-            ];
+            $this->catalog[$name] = new Skill($name, $document['description'], $storage, $skill);
         }
     }
 }
