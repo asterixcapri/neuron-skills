@@ -47,11 +47,13 @@ npx skills add juliusbrussee/caveman --skill caveman --agent universal --yes
 ```
 
 The [Skills CLI](https://github.com/vercel-labs/skills) requires Node.js/npm and
-installs `caveman` into `.agents/skills`. Register that directory on your
-configured Neuron AI agent:
+installs `caveman` into `.agents/skills`. Create an agent and register that
+directory, replacing `your-api-key` with your OpenAI API key:
 
 ```php
+use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Providers\OpenAI\OpenAI;
 use NeuronAI\Skills\Storage\FileSystemSkillStorage;
 use NeuronAI\Skills\Tools\SkillToolkit;
 
@@ -59,8 +61,10 @@ $toolkit = SkillToolkit::fromStorage(
     new FileSystemSkillStorage(__DIR__.'/.agents/skills'),
 );
 
-// $agent already has your AI provider and a thread ID configured.
-$agent->addTool($toolkit);
+$agent = Agent::make()
+    ->setThreadId('quick-start')
+    ->setAiProvider(new OpenAI(key: 'your-api-key', model: 'gpt-5.4-nano'))
+    ->addTool($toolkit);
 
 $response = $agent->chat(new UserMessage(
     'Use caveman skill to explain the difference between authentication and authorization.',
