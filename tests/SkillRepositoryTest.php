@@ -6,6 +6,7 @@ namespace NeuronAI\Skills\Tests;
 
 use LogicException;
 use RuntimeException;
+use NeuronAI\Skills\Skill;
 use NeuronAI\Skills\SkillRepository;
 use NeuronAI\Skills\Storage\SkillStorageInterface;
 use PHPUnit\Framework\TestCase;
@@ -27,19 +28,19 @@ class SkillRepositoryTest extends TestCase
 
         $this->assertSame(
             "# Writing instructions\n\nPrefer direct sentences.",
-            $repository->readInstructions('writing'),
+            $repository->get('writing')->readInstructions(),
         );
-        $this->assertNull($repository->location('writing'));
+        $this->assertNull($repository->get('writing')->location());
     }
 
-    public function test_location_rejects_an_unknown_skill(): void
+    public function test_get_rejects_an_unknown_skill(): void
     {
         $repository = new SkillRepository(new InMemorySkillStorage([]));
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Skill "missing" is not available.');
 
-        $repository->location('missing');
+        $repository->get('missing');
     }
 
     public function test_builds_a_deterministic_catalog_and_preserves_complete_instructions(): void
@@ -57,10 +58,15 @@ class SkillRepositoryTest extends TestCase
         $this->assertSame([
             ['name' => 'analysis', 'description' => 'Analyse evidence'],
             ['name' => 'writing', 'description' => 'Write clearly: for humans'],
-        ], $repository->catalog());
+        ], array_map(
+            static fn (Skill $skill): array => ['name' => $skill->name(), 'description' => $skill->description()],
+            $repository->catalog(),
+        ));
         $this->assertSame(['analysis', 'writing'], $repository->names());
-        $this->assertSame($storage->files['writing']['SKILL.md'], $repository->readDocument('writing'));
-        $this->assertSame($storage->files['analysis']['SKILL.md'], $repository->readDocument('analysis'));
+        $this->assertSame($repository->get('analysis'), $repository->catalog()[0]);
+        $this->assertSame($repository->get('writing'), $repository->catalog()[1]);
+        $this->assertSame($storage->files['writing']['SKILL.md'], $repository->get('writing')->readDocument());
+        $this->assertSame($storage->files['analysis']['SKILL.md'], $repository->get('analysis')->readDocument());
     }
 
     /** @dataProvider invalidSkills */
@@ -97,9 +103,12 @@ class SkillRepositoryTest extends TestCase
                 'guide.md' => 'First guide',
             ],
         ]));
-        $this->assertSame([['name' => 'shared', 'description' => 'First']], $repository->catalog());
-        $this->assertSame("---\nname: shared\ndescription: First\n---\nFirst body", $repository->readDocument('shared'));
-        $this->assertSame('First guide', $repository->readResource('shared', 'guide.md'));
+        $this->assertSame([['name' => 'shared', 'description' => 'First']], array_map(
+            static fn (Skill $skill): array => ['name' => $skill->name(), 'description' => $skill->description()],
+            $repository->catalog(),
+        ));
+        $this->assertSame("---\nname: shared\ndescription: First\n---\nFirst body", $repository->get('shared')->readDocument());
+        $this->assertSame('First guide', $repository->get('shared')->readResource('guide.md'));
         $diagnostics = $repository->diagnostics();
         $this->assertSame('a-invalid', $diagnostics[0]['skill']);
         $this->assertSame('z-last', $diagnostics[3]['skill']);
@@ -121,12 +130,15 @@ class SkillRepositoryTest extends TestCase
 
         $this->assertSame([
             ['name' => 'writing', 'description' => 'Original description'],
-        ], $repository->catalog());
-        $this->assertSame($storage->files['writing']['SKILL.md'], $repository->readDocument('writing'));
-        $this->assertSame('Changed guide.', $repository->readResource('writing', 'guide.md'));
+        ], array_map(
+            static fn (Skill $skill): array => ['name' => $skill->name(), 'description' => $skill->description()],
+            $repository->catalog(),
+        ));
+        $this->assertSame($storage->files['writing']['SKILL.md'], $repository->get('writing')->readDocument());
+        $this->assertSame('Changed guide.', $repository->get('writing')->readResource('guide.md'));
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Skill "added" is not available.');
-        $repository->readDocument('added');
+        $repository->get('added')->readDocument();
     }
 
     public function test_rejects_an_empty_resource_path_before_calling_storage(): void
@@ -141,7 +153,7 @@ class SkillRepositoryTest extends TestCase
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Resource path "" is invalid.');
-        $repository->readResource('writing', '');
+        $repository->get('writing')->readResource('');
     }
 
     /** @dataProvider failingReads */
@@ -157,9 +169,9 @@ class SkillRepositoryTest extends TestCase
         $this->expectExceptionMessage('Read failed.');
 
         if ($instructions) {
-            $repository->readDocument('writing');
+            $repository->get('writing')->readDocument();
         } else {
-            $repository->readResource('writing', $path);
+            $repository->get('writing')->readResource($path);
         }
     }
 
@@ -183,7 +195,7 @@ class SkillRepositoryTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Skill "writing" has invalid frontmatter.');
 
-        $repository->readDocument('writing');
+        $repository->get('writing')->readDocument();
     }
 
     public function test_rejects_resources_from_an_unknown_skill(): void
@@ -193,7 +205,7 @@ class SkillRepositoryTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Skill "unknown" is not available.');
 
-        $repository->readResource('unknown', 'guide.md');
+        $repository->get('unknown')->readResource('guide.md');
     }
 
     public function test_expected_manifest_storage_failures_exclude_a_package_from_the_catalog(): void

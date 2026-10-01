@@ -7,8 +7,9 @@ namespace NeuronAI\Skills;
 use RuntimeException;
 use NeuronAI\Skills\Storage\SkillStorageInterface;
 
-use function array_column;
 use function array_key_exists;
+use function array_map;
+use function array_values;
 use function sort;
 use function sprintf;
 
@@ -18,7 +19,7 @@ class SkillRepository
 {
     protected const MANIFEST = 'SKILL.md';
 
-    /** @var array<string, array{description: string, storage: SkillStorageInterface, identifier: string, ordinal: int}> */
+    /** @var array<string, array{skill: Skill, identifier: string, ordinal: int}> */
     protected array $skills = [];
 
     /** @var list<array{skill: string, message: string}> */
@@ -37,77 +38,26 @@ class SkillRepository
         }
     }
 
-    /** @return array<int, array{name: string, description: string}> */
+    /** @return list<Skill> */
     public function catalog(): array
     {
-        $catalog = [];
-        foreach ($this->skills as $name => $skill) {
-            $catalog[] = ['name' => (string) $name, 'description' => $skill['description']];
-        }
-
-        return $catalog;
+        return array_values(array_map(static fn (array $entry): Skill => $entry['skill'], $this->skills));
     }
 
     /** @return list<string> */
     public function names(): array
     {
-        return array_column($this->catalog(), 'name');
+        return array_map(static fn (Skill $skill): string => $skill->name(), $this->catalog());
     }
 
     /** @throws RuntimeException */
-    public function readInstructions(string $name): string
-    {
-        ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
-        $contents = $storage->read($identifier, self::MANIFEST);
-        $document = (new SkillDocumentParser())->parse($contents, $identifier)['document'];
-
-        if ($document === null) {
-            throw new RuntimeException(sprintf('Skill "%s" has invalid frontmatter.', $name));
-        }
-
-        return trim($document['body']);
-    }
-
-    /** @throws RuntimeException */
-    public function readDocument(string $name): string
-    {
-        ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
-        $contents = $storage->read($identifier, self::MANIFEST);
-
-        $document = (new SkillDocumentParser())->parse($contents, $identifier)['document'];
-        if ($document === null) {
-            throw new RuntimeException(sprintf('Skill "%s" has invalid frontmatter.', $name));
-        }
-
-        return $contents;
-    }
-
-    /** @throws RuntimeException */
-    public function location(string $name): ?string
-    {
-        ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
-        return $storage->location($identifier);
-    }
-
-    /** @throws RuntimeException */
-    public function readResource(string $name, string $path): string
-    {
-        ['storage' => $storage, 'identifier' => $identifier] = $this->getSkill($name);
-        if ($path === '') {
-            throw new RuntimeException('Resource path "" is invalid.');
-        }
-
-        return $storage->read($identifier, $path);
-    }
-
-    /** @return array{description: string, storage: SkillStorageInterface, identifier: string, ordinal: int} */
-    private function getSkill(string $name): array
+    public function get(string $name): Skill
     {
         if (!array_key_exists($name, $this->skills)) {
             throw new RuntimeException(sprintf('Skill "%s" is not available.', $name));
         }
 
-        return $this->skills[$name];
+        return $this->skills[$name]['skill'];
     }
 
     protected function buildCatalog(SkillStorageInterface $storage, int $ordinal): void
@@ -145,8 +95,7 @@ class SkillRepository
                 continue;
             }
             $this->skills[$name] = [
-                'description' => $document['description'],
-                'storage' => $storage,
+                'skill' => new Skill($name, $document['description'], $storage, $skill),
                 'identifier' => $skill,
                 'ordinal' => $ordinal,
             ];
