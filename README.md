@@ -17,7 +17,7 @@ make them available to the agent through a single toolkit.
 The library handles skill discovery and provides tools for loading instructions
 and supporting resources when needed. It follows the open
 [Agent Skills specification](https://agentskills.io/specification) and supports
-local directories as well as custom storage.
+local directories, SQL databases and custom storage.
 
 ![Neuron Agent Skills Package](docs/cover.png)
 
@@ -145,6 +145,123 @@ Optional and extension metadata is preserved when a skill is loaded. Fields
 such as `disable-model-invocation` and `user-invocable` are not enforced by this
 library. Applications that depend on invocation restrictions must implement
 them in their host agent.
+
+## Database Storage
+
+`DatabaseSkillStorage` loads skills from any SQL database reachable through
+PDO, such as MySQL, PostgreSQL or SQLite. It requires the `pdo` extension and
+the driver for your database. Pass your own connection and, optionally, the
+table name (`agent_skills` by default) and a scope (`default` by default):
+
+```php
+use NeuronAI\AgentSkills\Storage\DatabaseSkillStorage;
+use NeuronAI\AgentSkills\Tools\SkillToolkit;
+
+$pdo = new PDO('mysql:host=127.0.0.1;dbname=app;charset=utf8mb4', 'user', 'password');
+
+$toolkit = SkillToolkit::make()
+    ->fromStorage(new DatabaseSkillStorage($pdo, 'agent_skills'));
+```
+
+### Creating the table
+
+The library does not create the table. Run the script for your database once,
+or copy it into a migration.
+
+MySQL / MariaDB:
+
+```sql
+CREATE TABLE IF NOT EXISTS agent_skills (
+    scope VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT 'default',
+    skill VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+    path VARCHAR(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+    content LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+    PRIMARY KEY (scope, skill, path)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+PostgreSQL:
+
+```sql
+CREATE TABLE IF NOT EXISTS agent_skills (
+    scope VARCHAR(64) NOT NULL DEFAULT 'default',
+    skill VARCHAR(191) NOT NULL,
+    path VARCHAR(512) NOT NULL,
+    content TEXT NOT NULL,
+    PRIMARY KEY (scope, skill, path)
+);
+```
+
+SQLite:
+
+```sql
+CREATE TABLE IF NOT EXISTS agent_skills (
+    scope TEXT NOT NULL DEFAULT 'default',
+    skill TEXT NOT NULL,
+    path TEXT NOT NULL,
+    content TEXT NOT NULL,
+    PRIMARY KEY (scope, skill, path)
+);
+```
+
+The `utf8mb4_bin` collation keeps MySQL lookups case-sensitive, matching
+PostgreSQL, SQLite and the filesystem storage. If you use another table name,
+change it in the script and pass it as the second constructor argument. On
+MySQL, keep `scope` at 64 characters or fewer: the primary key is already close
+to InnoDB's 3072-byte index limit.
+
+### Storing skills
+
+The table holds one row per file:
+
+| Column | Content |
+| --- | --- |
+| `scope` | The set of skills the row belongs to. Defaults to `default`. |
+| `skill` | The storage identifier of the skill package, such as `caveman`. |
+| `path` | The file path relative to the package, with forward slashes and no leading slash, such as `SKILL.md` or `references/guide.md`. |
+| `content` | The UTF-8 text of the file. |
+
+Every skill needs a `SKILL.md` row; other rows are its supporting resources:
+
+```sql
+INSERT INTO agent_skills (skill, path, content) VALUES
+('writing', 'SKILL.md', '---
+name: writing
+description: Write clear, concise prose.
+---
+
+Prefer short sentences. See references/guide.md for the style guide.
+'),
+('writing', 'references/guide.md', 'Use the active voice.');
+```
+
+Rows inserted without a `scope` belong to the `default` scope.
+
+### Scoping skills
+
+A storage only sees the rows of its scope, so one table can serve a different
+list of skills per agent, tenant or user. Pass the scope as the third
+constructor argument:
+
+```php
+$support = new DatabaseSkillStorage($pdo, 'agent_skills', 'support');
+$tenant = new DatabaseSkillStorage($pdo, 'agent_skills', "tenant:{$tenantId}");
+```
+
+To share skills between scopes without duplicating rows, combine a scoped
+storage with a common one. Skills in the first storage take precedence:
+
+```php
+$toolkit = SkillToolkit::make()
+    ->fromStorage(
+        new DatabaseSkillStorage($pdo, 'agent_skills', 'support'),
+        new DatabaseSkillStorage($pdo, 'agent_skills', 'default'),
+    );
+```
+
+Database skills have no host-accessible location, so agents read their
+supporting files through `skill_resource` and bundled scripts cannot be
+executed in place.
 
 ## Custom Storage
 
