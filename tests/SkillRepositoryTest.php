@@ -14,8 +14,6 @@ use PHPUnit\Framework\TestCase;
 
 use function array_key_exists;
 use function sprintf;
-use function str_repeat;
-use function array_keys;
 
 class SkillRepositoryTest extends TestCase
 {
@@ -39,7 +37,7 @@ class SkillRepositoryTest extends TestCase
         $repository->names();
         $repository->diagnostics();
         $this->assertSame(1, $storage->listCalls);
-        $this->assertSame([['writing', 'SKILL.md']], $storage->reads);
+        $this->assertSame([], $storage->reads);
 
         $later = new InMemorySkillStorage([
             'writing' => ['SKILL.md' => "---\nname: writing\ndescription: Shadowed\n---\nOther"],
@@ -51,9 +49,9 @@ class SkillRepositoryTest extends TestCase
         $this->assertSame(['writing', 'extra'], $repository->names());
         $this->assertSame($selected, $repository->get('writing'));
         $this->assertSame(1, $storage->listCalls);
-        $this->assertSame([['writing', 'SKILL.md']], $storage->reads);
+        $this->assertSame([], $storage->reads);
         $this->assertSame(1, $later->listCalls);
-        $this->assertCount(2, $later->reads);
+        $this->assertCount(0, $later->reads);
         $this->assertCount(1, $repository->diagnostics());
     }
 
@@ -73,13 +71,14 @@ class SkillRepositoryTest extends TestCase
         $storage = new class ([]) extends InMemorySkillStorage {
             public bool $broken = true;
 
-            public function read(string $skill, string $path): string
+            public function list(): array
             {
-                if ($skill === 'z-broken' && $this->broken) {
+                $documents = parent::list();
+                if ($this->broken) {
                     throw new LogicException('Temporary storage failure.');
                 }
 
-                return parent::read($skill, $path);
+                return $documents;
             }
         };
         $storage->files = [
@@ -147,13 +146,9 @@ class SkillRepositoryTest extends TestCase
         $frontmatter->metadata->author = 'Changed locally';
         $this->assertSame('Valerio', $skill->readFrontmatter()->metadata->author);
 
-        $storage->files['writing']['SKILL.md'] = "---\nname: writing\ndescription: Updated\nlicense: Apache-2.0\n---\nBody";
-        $this->assertSame('Apache-2.0', $skill->readFrontmatter()->license);
-
         $storage->files['writing']['SKILL.md'] = 'Invalid manifest';
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Skill "writing" has invalid frontmatter.');
-        $skill->readFrontmatter();
+        $this->assertSame('MIT', $skill->readFrontmatter()->license);
+        $this->assertSame('Write directly.', $skill->readInstructions());
     }
 
     public function test_get_rejects_an_unknown_skill(): void
@@ -238,13 +233,11 @@ class SkillRepositoryTest extends TestCase
         $this->assertStringContainsString('shadowed', $diagnostics[3]['message']);
     }
 
-    public function test_catalog_is_snapshotted_while_instruction_and_resource_reads_are_lazy(): void
+    public function test_catalog_and_documents_are_snapshotted_while_resource_reads_are_lazy(): void
     {
+        $original = "---\nname: writing\ndescription: Original description\n---\nOriginal body.";
         $storage = new InMemorySkillStorage([
-            'writing' => [
-                'SKILL.md' => "---\nname: writing\ndescription: Original description\n---\nOriginal body.",
-                'guide.md' => 'Original guide.',
-            ],
+            'writing' => ['SKILL.md' => $original, 'guide.md' => 'Original guide.'],
         ]);
         $repository = new SkillRepository($storage);
         $repository->catalog();
@@ -258,11 +251,12 @@ class SkillRepositoryTest extends TestCase
             static fn (Skill $skill): array => ['name' => $skill->name(), 'description' => $skill->description()],
             $repository->catalog(),
         ));
-        $this->assertSame($storage->files['writing']['SKILL.md'], $repository->get('writing')->readDocument());
+        $this->assertSame($original, $repository->get('writing')->readDocument());
+        $this->assertSame('Original body.', $repository->get('writing')->readInstructions());
         $this->assertSame('Changed guide.', $repository->get('writing')->readResource('guide.md'));
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Skill "added" is not available.');
-        $repository->get('added')->readDocument();
+        $repository->get('added');
     }
 
     public function test_rejects_an_empty_resource_path_before_calling_storage(): void
@@ -280,48 +274,107 @@ class SkillRepositoryTest extends TestCase
         $repository->get('writing')->readResource('');
     }
 
-    /** @dataProvider failingReads */
-    public function test_propagates_expected_storage_failures(string $path, bool $instructions): void
+    /** @dataProvider equivalentPaths */
+    public function test_storages_receive_normalized_resource_references(string $path, string $reference): void
+    {
+        $storage = new InMemorySkillStorage([
+            'writing' => [
+                'SKILL.md' => "---\nname: writing\ndescription: Writing\n---\nInstructions.",
+                'guide.md' => 'Guide.',
+                'references/guide.md' => 'Reference guide.',
+            ],
+        ]);
+        $skill = (new SkillRepository($storage))->get('writing');
+
+        $this->assertSame($storage->files['writing'][$reference], $skill->readResource($path));
+        $this->assertSame([['writing', $reference]], $storage->reads);
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function equivalentPaths(): array
+    {
+        return [
+            'canonical' => ['references/guide.md', 'references/guide.md'],
+            'current directory' => ['./references/guide.md', 'references/guide.md'],
+            'repeated separators' => ['references//guide.md', 'references/guide.md'],
+            'backslashes' => ['references\\guide.md', 'references/guide.md'],
+            'confined parent' => ['references/../guide.md', 'guide.md'],
+            'sibling through parent' => ['scripts/../references/guide.md', 'references/guide.md'],
+        ];
+    }
+
+    /** @dataProvider invalidPaths */
+    public function test_rejects_invalid_resource_paths_before_calling_storage(string $path): void
+    {
+        $storage = new InMemorySkillStorage([
+            'writing' => ['SKILL.md' => "---\nname: writing\ndescription: Writing\n---\nInstructions."],
+        ]);
+        $skill = (new SkillRepository($storage))->get('writing');
+
+        try {
+            $skill->readResource($path);
+            $this->fail('Expected an invalid path to throw.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame(sprintf('Resource path "%s" is invalid.', $path), $exception->getMessage());
+        }
+        $this->assertSame([], $storage->reads);
+    }
+
+    /** @return array<string, array{string}> */
+    public static function invalidPaths(): array
+    {
+        return [
+            'current directory' => ['.'],
+            'absolute' => ['/SKILL.md'],
+            'parent' => ['../secret.md'],
+            'nested parent' => ['references/../../secret.md'],
+            'backslash parent' => ['..\\secret.md'],
+            'null byte' => ["guide.md\0"],
+        ];
+    }
+
+    /** @dataProvider binaryContents */
+    public function test_rejects_binary_resources_and_documents(string $contents): void
+    {
+        $repository = new SkillRepository(new InMemorySkillStorage([
+            'broken' => ['SKILL.md' => "---\nname: broken\ndescription: Broken\n---\n".$contents],
+            'writing' => [
+                'SKILL.md' => "---\nname: writing\ndescription: Writing\n---\nInstructions.",
+                'content.bin' => $contents,
+            ],
+        ]));
+
+        $this->assertSame(['writing'], $repository->names());
+        $this->assertSame(
+            [['skill' => 'broken', 'message' => 'SKILL.md contains unsupported binary content.']],
+            $repository->diagnostics(),
+        );
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Resource "content.bin" in skill "writing" contains unsupported binary content.');
+        $repository->get('writing')->readResource('content.bin');
+    }
+
+    /** @return array<string, array{string}> */
+    public static function binaryContents(): array
+    {
+        return [
+            'null byte' => ["text\0binary"],
+            'invalid UTF-8' => ["invalid \xC3\x28"],
+        ];
+    }
+
+    public function test_propagates_expected_resource_failures(): void
     {
         $storage = new InMemorySkillStorage([
             'writing' => ['SKILL.md' => "---\nname: writing\ndescription: Writing\n---\nInstructions."],
         ]);
         $repository = new SkillRepository($storage);
-        $repository->catalog();
-        $storage->failures['writing'][$path] = 'Read failed.';
+        $storage->failures['writing']['guide.md'] = 'Read failed.';
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Read failed.');
 
-        if ($instructions) {
-            $repository->get('writing')->readDocument();
-        } else {
-            $repository->get('writing')->readResource($path);
-        }
-    }
-
-    /** @return array<string, array{string, bool}> */
-    public static function failingReads(): array
-    {
-        return [
-            'instructions' => ['SKILL.md', true],
-            'resource' => ['guide.md', false],
-        ];
-    }
-
-    public function test_rejects_instructions_with_frontmatter_that_became_invalid(): void
-    {
-        $storage = new InMemorySkillStorage([
-            'writing' => ['SKILL.md' => "---\nname: writing\ndescription: Writing\n---\nInstructions."],
-        ]);
-        $repository = new SkillRepository($storage);
-        $repository->catalog();
-        $storage->files['writing']['SKILL.md'] = 'Invalid document.';
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Skill "writing" has invalid frontmatter.');
-
-        $repository->get('writing')->readDocument();
+        $repository->get('writing')->readResource('guide.md');
     }
 
     public function test_rejects_resources_from_an_unknown_skill(): void
@@ -334,32 +387,30 @@ class SkillRepositoryTest extends TestCase
         $repository->get('unknown')->readResource('guide.md');
     }
 
-    public function test_expected_manifest_storage_failures_exclude_a_package_from_the_catalog(): void
+    public function test_skills_left_out_by_the_storage_are_absent_from_the_catalog(): void
     {
         $storage = new InMemorySkillStorage([
             'writing' => ['SKILL.md' => "---\nname: writing\ndescription: Writing\n---\nInstructions."],
         ]);
         $storage->failures['writing']['SKILL.md'] = 'Skill "writing" has an unavailable SKILL.md.';
 
-        $this->assertSame([], (new SkillRepository($storage))->catalog());
+        $repository = new SkillRepository($storage);
+
+        $this->assertSame([], $repository->catalog());
+        $this->assertSame([], $repository->diagnostics());
     }
 
     public function test_unexpected_storage_failures_remain_exceptions(): void
     {
         $storage = new class () implements SkillStorageInterface {
-            public function location(string $skill): ?string
-            {
-                return null;
-            }
-
             public function list(): array
             {
-                return ['broken'];
+                throw new LogicException('Storage failed unexpectedly.');
             }
 
-            public function read(string $skill, string $path): string
+            public function resource(string $skill, string $reference): string
             {
-                throw new LogicException('Storage failed unexpectedly.');
+                return '';
             }
         };
 
@@ -385,30 +436,32 @@ class InMemorySkillStorage implements SkillStorageInterface
     /** @var list<array{string, string}> */
     public array $reads = [];
 
-    public function location(string $skill): ?string
-    {
-        return null;
-    }
-
     public function list(): array
     {
         ++$this->listCalls;
-        return array_keys($this->files);
+        $documents = [];
+        foreach ($this->files as $skill => $files) {
+            if (isset($files['SKILL.md']) && !isset($this->failures[$skill]['SKILL.md'])) {
+                $documents[$skill] = $files['SKILL.md'];
+            }
+        }
+
+        return $documents;
     }
 
-    public function read(string $skill, string $path): string
+    public function resource(string $skill, string $reference): string
     {
-        $this->reads[] = [$skill, $path];
-        if (isset($this->failures[$skill][$path])) {
-            throw new RuntimeException($this->failures[$skill][$path]);
+        $this->reads[] = [$skill, $reference];
+        if (isset($this->failures[$skill][$reference])) {
+            throw new RuntimeException($this->failures[$skill][$reference]);
         }
         if (!array_key_exists($skill, $this->files)) {
             throw new RuntimeException(sprintf('Skill "%s" is not available.', $skill));
         }
-        if (!array_key_exists($path, $this->files[$skill])) {
-            throw new RuntimeException(sprintf('Resource "%s" was not found in skill "%s".', $path, $skill));
+        if (!array_key_exists($reference, $this->files[$skill])) {
+            throw new RuntimeException(sprintf('Resource "%s" was not found in skill "%s".', $reference, $skill));
         }
 
-        return $this->files[$skill][$path];
+        return $this->files[$skill][$reference];
     }
 }

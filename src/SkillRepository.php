@@ -11,15 +11,13 @@ use NeuronAI\AgentSkills\Storage\SkillStorageInterface;
 use function array_key_exists;
 use function array_map;
 use function array_values;
-use function sort;
+use function ksort;
 use function sprintf;
 
 use const SORT_STRING;
 
 class SkillRepository
 {
-    protected const MANIFEST = 'SKILL.md';
-
     /** @var array<string, Skill> */
     protected array $catalog = [];
 
@@ -96,17 +94,11 @@ class SkillRepository
 
     protected function buildCatalog(SkillStorageInterface $storage): void
     {
-        $skills = $storage->list();
-        sort($skills, SORT_STRING);
+        $documents = $storage->list();
+        ksort($documents, SORT_STRING);
 
-        foreach ($skills as $skill) {
-            try {
-                $contents = $storage->read($skill, self::MANIFEST);
-            } catch (RuntimeException $exception) {
-                $this->diagnostics[] = ['skill' => $skill, 'message' => $exception->getMessage()];
-                continue;
-            }
-
+        foreach ($documents as $skill => $contents) {
+            $skill = (string) $skill;
             $parsed = (new SkillDocumentParser())->parse($contents, $skill);
             foreach ($parsed['warnings'] as $message) {
                 $this->diagnostics[] = ['skill' => $skill, 'message' => $message];
@@ -123,7 +115,7 @@ class SkillRepository
                 )];
                 continue;
             }
-            $this->catalog[$name] = new Skill($name, $document['description'], $storage, $skill);
+            $this->catalog[$name] = new Skill($name, $document['description'], $contents, $storage, $skill);
         }
     }
 }

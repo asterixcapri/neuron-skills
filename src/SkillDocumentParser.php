@@ -17,6 +17,13 @@ final class SkillDocumentParser
      */
     public function parse(string $contents, string $skill): array
     {
+        if (str_contains($contents, "\0") || preg_match('//u', $contents) !== 1) {
+            return [
+                'document' => null,
+                'warnings' => ['SKILL.md contains unsupported binary content.'],
+            ];
+        }
+
         $parts = $this->extractParts($contents);
         if ($parts === null) {
             return [

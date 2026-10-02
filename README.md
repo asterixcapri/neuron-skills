@@ -76,8 +76,8 @@ echo $response->getMessage()->getContent();
 
 ## How Skills Work
 
-The agent initially sees each skill's name, description and location. When a
-skill is relevant to the task, it uses `skill` to load its instructions. If those
+The agent initially sees each skill's name and description, plus its location
+when the storage provides one. When a skill is relevant to the task, it uses `skill` to load its instructions. If those
 instructions reference supporting files, it can read them with `skill_resource`.
 This keeps the initial context small while making the full skill available when
 needed.
@@ -108,9 +108,10 @@ $toolkit = SkillToolkit::make()
 ```
 
 The first usable skill with a given declared name wins. Instructions and
-resources are read from that selected source. Restart the agent or recreate the
-toolkit after adding skills to an existing directory: each storage is discovered
-on first access and its catalog is then reused.
+resources are read from that selected source. Each storage is discovered on
+first access: the catalog and every `SKILL.md` are loaded once and then reused,
+while supporting resources are read on demand. Restart the agent or recreate the
+toolkit after adding skills or editing a `SKILL.md`.
 
 ## Accessing Skills Directly
 
@@ -140,6 +141,11 @@ $document = $skill->readDocument();         // Complete original SKILL.md.
 $location = $skill->location();             // Host-accessible location or null.
 $resource = $skill->readResource('references/guide.md');
 ```
+
+`readResource()` accepts the path as written in the skill instructions. It
+resolves `.`, `..` and backslashes, rejects paths that are absolute or leave the
+skill, and rejects content that is not UTF-8 text, whichever storage holds the
+skill.
 
 Optional and extension metadata is preserved when a skill is loaded. Fields
 such as `disable-model-invocation` and `user-invocable` are not enforced by this
@@ -173,10 +179,10 @@ MySQL / MariaDB:
 ```sql
 CREATE TABLE IF NOT EXISTS agent_skills (
     scope VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT 'default',
-    skill VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+    skill_name VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
     path VARCHAR(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
     content LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-    PRIMARY KEY (scope, skill, path)
+    PRIMARY KEY (scope, skill_name, path)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
@@ -185,10 +191,10 @@ PostgreSQL:
 ```sql
 CREATE TABLE IF NOT EXISTS agent_skills (
     scope VARCHAR(64) NOT NULL DEFAULT 'default',
-    skill VARCHAR(191) NOT NULL,
+    skill_name VARCHAR(191) NOT NULL,
     path VARCHAR(512) NOT NULL,
     content TEXT NOT NULL,
-    PRIMARY KEY (scope, skill, path)
+    PRIMARY KEY (scope, skill_name, path)
 );
 ```
 
@@ -197,10 +203,10 @@ SQLite:
 ```sql
 CREATE TABLE IF NOT EXISTS agent_skills (
     scope TEXT NOT NULL DEFAULT 'default',
-    skill TEXT NOT NULL,
+    skill_name TEXT NOT NULL,
     path TEXT NOT NULL,
     content TEXT NOT NULL,
-    PRIMARY KEY (scope, skill, path)
+    PRIMARY KEY (scope, skill_name, path)
 );
 ```
 
@@ -217,14 +223,14 @@ The table holds one row per file:
 | Column | Content |
 | --- | --- |
 | `scope` | The set of skills the row belongs to. Defaults to `default`. |
-| `skill` | The storage identifier of the skill package, such as `caveman`. |
-| `path` | The file path relative to the package, with forward slashes and no leading slash, such as `SKILL.md` or `references/guide.md`. |
+| `skill_name` | The name of the skill, as declared in its `SKILL.md`, such as `caveman`. |
+| `path` | `SKILL.md` for the skill document. For a resource, the path the instructions refer to it by, with forward slashes and no leading slash, `.` or `..`, such as `references/guide.md`. |
 | `content` | The UTF-8 text of the file. |
 
 Every skill needs a `SKILL.md` row; other rows are its supporting resources:
 
 ```sql
-INSERT INTO agent_skills (skill, path, content) VALUES
+INSERT INTO agent_skills (skill_name, path, content) VALUES
 ('writing', 'SKILL.md', '---
 name: writing
 description: Write clear, concise prose.
@@ -266,25 +272,66 @@ executed in place.
 ## Custom Storage
 
 Implement [`SkillStorageInterface`](src/Storage/SkillStorageInterface.php) to
-load skills from another backend. It defines three methods:
+load skills from another backend. It defines two methods:
 
-- `list()` returns the available storage identifiers.
-- `read($skill, $path)` reads a UTF-8 text file relative to a skill.
-- `location($skill)` returns a base location accessible to host tools, or `null`
-  when none is available.
+- `list()` returns the `SKILL.md` document of every available skill, keyed by
+  storage identifier. Leave out skills whose document cannot be read.
+- `resource($skill, $reference)` returns a supporting text resource of a skill.
 
-Use storage identifiers for reads and locations, even when they differ from the
-declared skill names. Remote locations require host tools that can access them.
-Throw `RuntimeException` for expected read failures, such as missing or
-unreadable resources.
+```php
+use NeuronAI\AgentSkills\Storage\SkillStorageInterface;
+
+class ApiSkillStorage implements SkillStorageInterface
+{
+    public function list(): array
+    {
+        // ['writing' => "---\nname: writing\ndescription: ...\n---\nInstructions"]
+        return $this->client->skillDocuments();
+    }
+
+    public function resource(string $skill, string $reference): string
+    {
+        return $this->client->skillResource($skill, $reference)
+            ?? throw new RuntimeException("Resource \"{$reference}\" was not found in skill \"{$skill}\".");
+    }
+}
+```
+
+The storage identifier is the key your backend knows a skill by, normally its
+declared name. The library passes it back as `$skill`, even when it differs from
+the name declared in the document.
+
+`$reference` arrives already normalized: forward-slash separated segments with
+no leading slash, `.` or `..`, such as `references/guide.md`. Treat it as a
+lookup key. Throw `RuntimeException` for expected failures, such as a missing
+resource. The library checks that documents and resources are UTF-8 text.
+
+When host tools can reach the skill files, for example to execute bundled
+scripts, implement
+[`LocatableSkillStorageInterface`](src/Storage/LocatableSkillStorageInterface.php)
+instead. It adds `location($skill)`, which returns the base location of a skill.
+The location need not be a local path, but host tools must be able to access it.
+
+### Upgrading a storage written for 1.0
+
+| 1.0 | Now |
+| --- | --- |
+| `list()` returns identifiers | `list()` returns `identifier => SKILL.md contents` |
+| `read($skill, 'SKILL.md')` | The document comes from `list()` |
+| `read($skill, $path)` | `resource($skill, $reference)` |
+| `location($skill): ?string` on every storage | `location($skill): string` on `LocatableSkillStorageInterface` only |
+
+Path validation and the UTF-8 check moved into the library, so a storage no
+longer needs its own.
 
 ## Error Handling
 
-Invalid or unreadable skills are skipped. Use `$skills->diagnostics()` to inspect
-loading problems and warnings.
+Skills with an invalid `SKILL.md` are skipped. Use `$skills->diagnostics()` to
+inspect loading problems and warnings. Skills a storage leaves out, such as a
+directory without a readable `SKILL.md`, are not reported.
 
 The tools report read failures to the agent. When accessing skills directly,
-catch `RuntimeException` for unavailable skills, documents or resources.
+catch `RuntimeException` for unavailable skills or resources.
 
 ## Runnable Examples
 

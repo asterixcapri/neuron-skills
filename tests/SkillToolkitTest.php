@@ -26,10 +26,10 @@ use NeuronAI\AgentSkills\Tools\SkillResourceTool;
 use NeuronAI\AgentSkills\Tools\SkillToolkit;
 use NeuronAI\AgentSkills\Tools\SkillTool;
 use NeuronAI\AgentSkills\Storage\FileSystemSkillStorage;
+use NeuronAI\AgentSkills\Storage\LocatableSkillStorageInterface;
 use NeuronAI\AgentSkills\Storage\SkillStorageInterface;
 use PHPUnit\Framework\TestCase;
 
-use function array_keys;
 use function array_unique;
 use function bin2hex;
 use function file_exists;
@@ -249,23 +249,17 @@ class SkillToolkitTest extends TestCase
     public function test_agent_tracks_distinct_skill_and_resource_reads_separately(): void
     {
         $storage = new class () implements SkillStorageInterface {
-            public function location(string $skill): ?string
-            {
-                return null;
-            }
-
             public function list(): array
             {
-                return ['analysis', 'writing'];
+                return [
+                    'analysis' => "---\nname: analysis\ndescription: analysis skill\n---\nanalysis instructions.",
+                    'writing' => "---\nname: writing\ndescription: writing skill\n---\nwriting instructions.",
+                ];
             }
 
-            public function read(string $skill, string $path): string
+            public function resource(string $skill, string $reference): string
             {
-                if ($path === 'SKILL.md') {
-                    return "---\nname: {$skill}\ndescription: {$skill} skill\n---\n{$skill} instructions.";
-                }
-
-                return "{$skill}:{$path}";
+                return "{$skill}:{$reference}";
             }
         };
         $toolkit = new SkillToolkit(new SkillRepository($storage));
@@ -376,30 +370,13 @@ class SkillToolkitTest extends TestCase
         ));
     }
 
-    /** @dataProvider expectedReadFailures */
-    public function test_agent_receives_expected_read_failures_without_an_error_handler(
-        int $toolIndex,
-        bool $invalidManifest,
-        string $expected,
-    ): void {
+    public function test_agent_receives_expected_read_failures_without_an_error_handler(): void
+    {
         $toolkit = new SkillToolkit(new SkillRepository(new FileSystemSkillStorage($this->skillsRoot)));
-        $toolkit->guidelines();
-
-        if ($toolIndex === 0) {
-            if ($invalidManifest) {
-                file_put_contents($this->skillsRoot.'/writing/SKILL.md', 'Invalid document.');
-            } else {
-                unlink($this->skillsRoot.'/writing/SKILL.md');
-            }
-        }
-
-        $inputs = $toolIndex === 0
-            ? ['name' => 'writing']
-            : ['name' => 'writing', 'path' => 'missing.md'];
-        $tool = $toolkit->tools()[$toolIndex];
+        $tool = $toolkit->tools()[1];
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (new ToolCall($tool->getName(), 'failed_read'))->setInputs($inputs),
+                (new ToolCall($tool->getName(), 'failed_read'))->setInputs(['name' => 'writing', 'path' => 'missing.md']),
             ]),
             new AssistantMessage('I could not read that file.'),
         );
@@ -412,112 +389,64 @@ class SkillToolkitTest extends TestCase
             ->getMessage();
 
         $this->assertSame('I could not read that file.', $response->getContent());
-        $provider->assertSent(fn (RequestRecord $record): bool => $this->hasToolResult($record, $expected));
+        $provider->assertSent(fn (RequestRecord $record): bool => $this->hasToolResult(
+            $record,
+            'Resource "missing.md" was not found in skill "writing".',
+        ));
     }
 
-    /** @return array<string, array{int, bool, string}> */
-    public static function expectedReadFailures(): array
+    public function test_activation_returns_the_document_discovered_with_the_catalog(): void
     {
-        return [
-            'missing instructions' => [0, false, 'Resource "SKILL.md" was not found in skill "writing".'],
-            'invalid instructions' => [0, true, 'Skill "writing" has invalid frontmatter.'],
-            'missing resource' => [1, false, 'Resource "missing.md" was not found in skill "writing".'],
-        ];
+        $document = file_get_contents($this->skillsRoot.'/writing/SKILL.md');
+        $toolkit = new SkillToolkit(new SkillRepository(new FileSystemSkillStorage($this->skillsRoot)));
+        $toolkit->guidelines();
+        unlink($this->skillsRoot.'/writing/SKILL.md');
+
+        $tool = $toolkit->tools()[0];
+        $tool->setInputs(['name' => 'writing'])->execute();
+
+        $this->assertSame($document, $tool->getResult());
     }
 
     public function test_tool_delegates_reads_to_the_configured_storage(): void
     {
         $storage = new class () implements SkillStorageInterface {
             public ?string $requestedSkill = null;
-            public ?string $requestedPath = null;
-
-            public function location(string $skill): ?string
-            {
-                return null;
-            }
+            public ?string $requestedReference = null;
 
             public function list(): array
             {
-                return ['remote'];
+                return ['remote' => "---\nname: remote\ndescription: Remote skill\n---\nRemote instructions."];
             }
 
-            public function read(string $skill, string $path): string
+            public function resource(string $skill, string $reference): string
             {
                 $this->requestedSkill = $skill;
-                $this->requestedPath = $path;
+                $this->requestedReference = $reference;
 
-                return $path === 'SKILL.md'
-                    ? "---\nname: remote\ndescription: Remote skill\n---\nRemote instructions."
-                    : 'Remote resource.';
+                return 'Remote resource.';
             }
         };
         $toolkit = new SkillToolkit(new SkillRepository($storage));
-        $storage->requestedSkill = null;
-        $storage->requestedPath = null;
         $tool = $toolkit->tools()[1];
         $tool->setInputs(['name' => 'remote', 'path' => 'references/api.md']);
         $tool->execute();
 
         $this->assertSame('Remote resource.', $tool->getResult());
         $this->assertSame('remote', $storage->requestedSkill);
-        $this->assertSame('references/api.md', $storage->requestedPath);
-    }
-
-    public function test_unexpected_repository_failures_remain_exceptions(): void
-    {
-        $storage = new class () implements SkillStorageInterface {
-            public int $reads = 0;
-
-            public function location(string $skill): ?string
-            {
-                return null;
-            }
-
-            public function list(): array
-            {
-                return ['broken'];
-            }
-
-            public function read(string $skill, string $path): string
-            {
-                if ($this->reads++ === 0) {
-                    return "---\nname: broken\ndescription: Broken skill\n---\nInstructions.";
-                }
-
-                throw new LogicException('Storage failed unexpectedly.');
-            }
-        };
-        $toolkit = new SkillToolkit(new SkillRepository($storage));
-        $tool = $toolkit->tools()[0];
-        $tool->setInputs(['name' => 'broken']);
-
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Storage failed unexpectedly.');
-
-        $tool->execute();
+        $this->assertSame('references/api.md', $storage->requestedReference);
     }
 
     public function test_unexpected_resource_repository_failures_remain_exceptions(): void
     {
         $storage = new class () implements SkillStorageInterface {
-            public int $reads = 0;
-
-            public function location(string $skill): ?string
-            {
-                return null;
-            }
-
             public function list(): array
             {
-                return ['broken'];
+                return ['broken' => "---\nname: broken\ndescription: Broken skill\n---\nInstructions."];
             }
 
-            public function read(string $skill, string $path): string
+            public function resource(string $skill, string $reference): string
             {
-                if ($this->reads++ === 0) {
-                    return "---\nname: broken\ndescription: Broken skill\n---\nInstructions.";
-                }
-
                 throw new LogicException('Resource storage failed unexpectedly.');
             }
         };
@@ -540,19 +469,14 @@ class SkillToolkitTest extends TestCase
                 'second' => "---\nname: second\ndescription: Second skill\n---\nSecond.",
             ];
 
-            public function location(string $skill): ?string
-            {
-                return null;
-            }
-
             public function list(): array
             {
-                return array_keys($this->manifests);
+                return $this->manifests;
             }
 
-            public function read(string $skill, string $path): string
+            public function resource(string $skill, string $reference): string
             {
-                return $path === 'SKILL.md' ? $this->manifests[$skill] : $skill;
+                return $skill;
             }
         };
         $toolkit = new SkillToolkit(new SkillRepository($storage));
@@ -623,22 +547,22 @@ class SkillToolkitTest extends TestCase
     /** @dataProvider locationFailures */
     public function test_catalog_propagates_location_failures(bool $expected): void
     {
-        $storage = new class ($expected) implements SkillStorageInterface {
+        $storage = new class ($expected) implements LocatableSkillStorageInterface {
             public function __construct(private bool $expected)
             {
             }
 
             public function list(): array
             {
-                return ['writing'];
+                return ['writing' => "---\nname: writing\ndescription: Writing\n---\nBody"];
             }
 
-            public function read(string $skill, string $path): string
+            public function resource(string $skill, string $reference): string
             {
-                return "---\nname: writing\ndescription: Writing\n---\nBody";
+                return '';
             }
 
-            public function location(string $skill): ?string
+            public function location(string $skill): string
             {
                 if ($this->expected) {
                     throw new RuntimeException('Location unavailable.');
@@ -663,47 +587,31 @@ class SkillToolkitTest extends TestCase
     public function test_activation_preserves_original_document_and_only_reads_requested_resources(?string $location): void
     {
         $document = "---\r\nname: declared\r\ndescription: Remote guidance\r\nallowed-tools: host_read\r\nmetadata: {author: Human}\r\nx-extension: preserved\r\n---\r\n\r\nRead references/guide.md when needed.  \r\n";
-        $storage = new class ($document, $location) implements SkillStorageInterface {
-            /** @var list<array{string, string}> */
-            public array $reads = [];
-            /** @var list<string> */
-            public array $locations = [];
-
-            public function __construct(private string $document, private ?string $base)
-            {
-            }
-
-            public function list(): array
-            {
-                return ['source-id'];
-            }
-
-            public function location(string $skill): ?string
-            {
-                $this->locations[] = $skill;
-                return $this->base;
-            }
-
-            public function read(string $skill, string $path): string
-            {
-                $this->reads[] = [$skill, $path];
-                return $path === 'SKILL.md' ? $this->document : 'Lazy guide';
-            }
-        };
+        $storage = $location === null
+            ? new RemoteSkillStorage($document)
+            : new LocatableRemoteSkillStorage($document, $location);
         $toolkit = new SkillToolkit(new SkillRepository($storage));
-        $this->assertSame([], $storage->reads);
+        $this->assertSame(0, $storage->listCalls);
         $this->assertSame([], $storage->locations);
         $guidelines = $toolkit->guidelines() ?? '';
         $this->assertStringNotContainsString('x-extension', $guidelines);
-        $this->assertStringContainsString('location: '.($location ?? 'unavailable'), $guidelines);
+        if ($location === null) {
+            $this->assertStringContainsString("- declared: Remote guidance\n", $guidelines);
+            $this->assertStringNotContainsString('location', $guidelines);
+            $this->assertStringContainsString('use an available execution tool. Skill instructions', $guidelines);
+        } else {
+            $this->assertStringContainsString('- declared: Remote guidance (location: '.$location.")\n", $guidelines);
+            $this->assertStringContainsString('from its catalog location when one is listed', $guidelines);
+        }
         [$activation, $resource] = $toolkit->tools();
         $activation->setInputs(['name' => 'declared'])->execute();
         $this->assertSame($document, $activation->getResult());
-        $this->assertSame(['source-id'], $storage->locations);
-        $this->assertSame([['source-id', 'SKILL.md'], ['source-id', 'SKILL.md']], $storage->reads);
-        $resource->setInputs(['name' => 'declared', 'path' => 'references/guide.md'])->execute();
+        $this->assertSame($location === null ? [] : ['source-id'], $storage->locations);
+        $this->assertSame(1, $storage->listCalls);
+        $this->assertSame([], $storage->reads);
+        $resource->setInputs(['name' => 'declared', 'path' => './references/guide.md'])->execute();
         $this->assertSame('Lazy guide', $resource->getResult());
-        $this->assertSame(['source-id', 'references/guide.md'], array_slice($storage->reads, -1)[0]);
+        $this->assertSame([['source-id', 'references/guide.md']], $storage->reads);
         $this->assertCount(2, $toolkit->tools());
     }
 
@@ -794,5 +702,49 @@ class SkillToolkitTest extends TestCase
         }
 
         return false;
+    }
+}
+
+class RemoteSkillStorage implements SkillStorageInterface
+{
+    public int $listCalls = 0;
+
+    /** @var list<array{string, string}> */
+    public array $reads = [];
+
+    /** @var list<string> */
+    public array $locations = [];
+
+    public function __construct(protected string $document)
+    {
+    }
+
+    public function list(): array
+    {
+        ++$this->listCalls;
+
+        return ['source-id' => $this->document];
+    }
+
+    public function resource(string $skill, string $reference): string
+    {
+        $this->reads[] = [$skill, $reference];
+
+        return 'Lazy guide';
+    }
+}
+
+class LocatableRemoteSkillStorage extends RemoteSkillStorage implements LocatableSkillStorageInterface
+{
+    public function __construct(string $document, protected string $base)
+    {
+        parent::__construct($document);
+    }
+
+    public function location(string $skill): string
+    {
+        $this->locations[] = $skill;
+
+        return $this->base;
     }
 }

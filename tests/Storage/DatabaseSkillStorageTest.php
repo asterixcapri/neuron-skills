@@ -27,13 +27,17 @@ class DatabaseSkillStorageTest extends TestCase
         $this->createTable('agent_skills');
     }
 
-    public function test_lists_distinct_skills_in_deterministic_order(): void
+    public function test_lists_documents_keyed_by_skill_name_in_deterministic_order(): void
     {
         $this->insert('writing', 'SKILL.md', 'Writing.');
         $this->insert('writing', 'references/guide.md', 'Guide.');
         $this->insert('analysis', 'SKILL.md', 'Analysis.');
+        $this->insert('orphan', 'references/guide.md', 'No document.');
 
-        $this->assertSame(['analysis', 'writing'], (new DatabaseSkillStorage($this->pdo))->list());
+        $this->assertSame(
+            ['analysis' => 'Analysis.', 'writing' => 'Writing.'],
+            (new DatabaseSkillStorage($this->pdo))->list(),
+        );
     }
 
     public function test_empty_table_has_no_skills(): void
@@ -41,47 +45,12 @@ class DatabaseSkillStorageTest extends TestCase
         $this->assertSame([], (new DatabaseSkillStorage($this->pdo))->list());
     }
 
-    public function test_reads_files_lazily_and_in_full(): void
+    public function test_reads_resources_lazily_and_in_full(): void
     {
         $storage = new DatabaseSkillStorage($this->pdo);
         $this->insert('writing', 'references/guide.md', "Guide.\nSecond line.\n");
 
-        $this->assertSame("Guide.\nSecond line.\n", $storage->read('writing', 'references/guide.md'));
-    }
-
-    public function test_equivalent_relative_paths_read_the_same_file(): void
-    {
-        $this->insert('writing', 'references/guide.md', 'Guide.');
-        $storage = new DatabaseSkillStorage($this->pdo);
-
-        $this->assertSame('Guide.', $storage->read('writing', './references//guide.md'));
-    }
-
-    #[DataProvider('invalidPaths')]
-    public function test_invalid_paths_are_rejected(string $path): void
-    {
-        $this->insert('writing', 'SKILL.md', 'Writing.');
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('is invalid');
-
-        (new DatabaseSkillStorage($this->pdo))->read('writing', $path);
-    }
-
-    /**
-     * @return array<string, array{string}>
-     */
-    public static function invalidPaths(): array
-    {
-        return [
-            'empty' => [''],
-            'current directory' => ['.'],
-            'absolute' => ['/SKILL.md'],
-            'parent' => ['../SKILL.md'],
-            'nested parent' => ['references/../../SKILL.md'],
-            'backslash' => ['references\\guide.md'],
-            'null byte' => ["SKILL.md\0"],
-        ];
+        $this->assertSame("Guide.\nSecond line.\n", $storage->resource('writing', 'references/guide.md'));
     }
 
     public function test_missing_resources_and_unknown_skills_throw(): void
@@ -90,37 +59,14 @@ class DatabaseSkillStorageTest extends TestCase
         $storage = new DatabaseSkillStorage($this->pdo);
 
         try {
-            $storage->read('writing', 'missing.md');
+            $storage->resource('writing', 'missing.md');
             $this->fail('Expected a missing resource to throw.');
         } catch (RuntimeException $exception) {
             $this->assertSame('Resource "missing.md" was not found in skill "writing".', $exception->getMessage());
         }
 
         $this->expectException(RuntimeException::class);
-        $storage->read('unknown', 'SKILL.md');
-    }
-
-    public function test_binary_content_is_rejected(): void
-    {
-        $this->insert('writing', 'null.bin', "a\0b");
-        $this->insert('writing', 'latin1.txt', "caf\xE9");
-        $storage = new DatabaseSkillStorage($this->pdo);
-
-        foreach (['null.bin', 'latin1.txt'] as $path) {
-            try {
-                $storage->read('writing', $path);
-                $this->fail('Expected binary content to throw.');
-            } catch (RuntimeException $exception) {
-                $this->assertStringContainsString('unsupported binary content', $exception->getMessage());
-            }
-        }
-    }
-
-    public function test_location_is_unavailable(): void
-    {
-        $this->insert('writing', 'SKILL.md', 'Writing.');
-
-        $this->assertNull((new DatabaseSkillStorage($this->pdo))->location('writing'));
+        $storage->resource('unknown', 'guide.md');
     }
 
     public function test_custom_table_name_is_used(): void
@@ -128,7 +74,7 @@ class DatabaseSkillStorageTest extends TestCase
         $this->createTable('custom_skills');
         $this->insert('writing', 'SKILL.md', 'Writing.', 'custom_skills');
 
-        $this->assertSame(['writing'], (new DatabaseSkillStorage($this->pdo, 'custom_skills'))->list());
+        $this->assertSame(['writing' => 'Writing.'], (new DatabaseSkillStorage($this->pdo, 'custom_skills'))->list());
     }
 
     public function test_only_rows_of_the_configured_scope_are_visible(): void
@@ -139,13 +85,14 @@ class DatabaseSkillStorageTest extends TestCase
         $default = new DatabaseSkillStorage($this->pdo);
         $support = new DatabaseSkillStorage($this->pdo, scope: 'support');
 
-        $this->assertSame(['writing'], $default->list());
-        $this->assertSame(['refunds', 'writing'], $support->list());
-        $this->assertSame('Default writing.', $default->read('writing', 'SKILL.md'));
-        $this->assertSame('Support writing.', $support->read('writing', 'SKILL.md'));
+        $this->insert('refunds', 'policy.md', 'Policy.', scope: 'support');
+
+        $this->assertSame(['writing' => 'Default writing.'], $default->list());
+        $this->assertSame(['refunds' => 'Refunds.', 'writing' => 'Support writing.'], $support->list());
+        $this->assertSame('Policy.', $support->resource('refunds', 'policy.md'));
 
         $this->expectException(RuntimeException::class);
-        $default->read('refunds', 'SKILL.md');
+        $default->resource('refunds', 'policy.md');
     }
 
     public function test_scoped_storages_combine_with_a_shared_scope_in_precedence_order(): void
@@ -186,7 +133,7 @@ class DatabaseSkillStorageTest extends TestCase
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('could not be read');
-        $storage->read('writing', 'SKILL.md');
+        $storage->resource('writing', 'guide.md');
     }
 
     /**
@@ -215,7 +162,7 @@ class DatabaseSkillStorageTest extends TestCase
     protected function createTable(string $table): void
     {
         $this->pdo->exec(
-            "CREATE TABLE {$table} (scope VARCHAR(64) NOT NULL, skill VARCHAR(255) NOT NULL, path VARCHAR(255) NOT NULL, content TEXT NOT NULL, PRIMARY KEY (scope, skill, path))",
+            "CREATE TABLE {$table} (scope VARCHAR(64) NOT NULL, skill_name VARCHAR(255) NOT NULL, path VARCHAR(255) NOT NULL, content TEXT NOT NULL, PRIMARY KEY (scope, skill_name, path))",
         );
     }
 
@@ -226,7 +173,7 @@ class DatabaseSkillStorageTest extends TestCase
         string $table = 'agent_skills',
         string $scope = 'default',
     ): void {
-        $this->pdo->prepare("INSERT INTO {$table} (scope, skill, path, content) VALUES (?, ?, ?, ?)")
+        $this->pdo->prepare("INSERT INTO {$table} (scope, skill_name, path, content) VALUES (?, ?, ?, ?)")
             ->execute([$scope, $skill, $path, $content]);
     }
 }

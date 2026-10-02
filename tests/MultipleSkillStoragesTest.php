@@ -63,7 +63,7 @@ class MultipleSkillStoragesTest extends TestCase
         $this->skill('user', '123', "'123'", 'User');
         $project = new FileSystemSkillStorage($this->root.'/project');
         $user = new FileSystemSkillStorage($this->root.'/user');
-        $this->assertSame(['123'], $project->list());
+        $this->assertSame(['123' => $projectDocument], $project->list());
         foreach ([
             new SkillToolkit(new SkillRepository($project)),
             new SkillToolkit(new SkillRepository($project, $user)),
@@ -167,11 +167,10 @@ class MultipleSkillStoragesTest extends TestCase
         $repository = new SkillRepository($primary, $fallback);
         $toolkit = new SkillToolkit($repository);
         $guidelines = $toolkit->guidelines() ?? '';
-        $this->assertSame(['a-first/SKILL.md', 'invalid/SKILL.md', 'unreadable/SKILL.md', 'z-last/SKILL.md'], $primary->reads);
-        $this->assertSame(['invalid/SKILL.md', 'shared/SKILL.md', 'unreadable/SKILL.md'], $fallback->reads);
-        $guidelines = $toolkit->guidelines() ?? '';
+        $this->assertSame([], $primary->reads);
+        $this->assertSame([], $fallback->reads);
         $this->assertStringContainsString('shared: First', $guidelines);
-        $this->assertStringContainsString('location: unavailable', $guidelines);
+        $this->assertStringNotContainsString('location', $guidelines);
         $this->assertStringContainsString('invalid: Recovered', $guidelines);
         $this->assertStringContainsString('unreadable: Recovered', $guidelines);
         [$activation, $resource] = $toolkit->tools();
@@ -179,10 +178,11 @@ class MultipleSkillStoragesTest extends TestCase
         $this->assertStringContainsString('description: First', $activation->getResult());
         $resource->setInputs(['name' => 'shared', 'path' => 'guide.md'])->execute();
         $this->assertSame('a-first/guide.md', $resource->getResult());
-        $this->assertSame(['invalid/SKILL.md', 'shared/SKILL.md', 'unreadable/SKILL.md'], $fallback->reads);
+        $this->assertSame(['a-first/guide.md'], $primary->reads);
+        $this->assertSame([], $fallback->reads);
         $primary->documents['a-first'] = "---\nname: shared\ndescription: Changed\n---\nNew body";
         $activation->execute();
-        $this->assertStringContainsString('New body', $activation->getResult());
+        $this->assertStringNotContainsString('New body', $activation->getResult());
         $this->assertSame($guidelines, $toolkit->guidelines());
         $this->assertNotEmpty($repository->diagnostics());
     }
@@ -251,20 +251,11 @@ class TrackedSkillStorage implements SkillStorageInterface
 
     public function list(): array
     {
-        return array_keys($this->documents);
+        return array_filter($this->documents, is_string(...));
     }
 
-    public function location(string $skill): ?string
+    public function resource(string $skill, string $reference): string
     {
-        return null;
-    }
-
-    public function read(string $skill, string $path): string
-    {
-        $this->reads[] = $skill.'/'.$path;
-        if ($path !== 'SKILL.md') {
-            return $skill.'/'.$path;
-        }
-        return $this->documents[$skill] ?? throw new RuntimeException('Document unreadable.');
+        return $this->reads[] = $skill.'/'.$reference;
     }
 }
