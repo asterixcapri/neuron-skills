@@ -4,6 +4,12 @@
 [![PHP](https://img.shields.io/badge/PHP-8.1%2B-777BB4?logo=php&logoColor=white)](composer.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+> [!IMPORTANT]
+> Get early access to new features, exclusive tutorials, and expert tips for building AI agents in PHP. Join a community of PHP developers pioneering the future of AI development.
+> [Subscribe to the newsletter](https://neuron-ai.dev)
+
+> Before moving on, support the Neuron AI community giving a GitHub star ⭐️. Thank you!
+
 Add Agent Skills to your [Neuron AI](https://github.com/neuron-core/neuron-ai)
 agents with `SkillToolkit`. Combine your own skills with community packages and
 make them available to the agent through a single toolkit.
